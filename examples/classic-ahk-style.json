@@ -1,0 +1,10 @@
+{
+  "name": "自动种田-经典模板",
+  "loop": 0,
+  "steps": [
+    { "type": "hold", "keys": ["A"], "untilType": "time", "ms": 120000 },
+    { "type": "wait", "ms": 500 },
+    { "type": "hold", "keys": ["D"], "untilType": "time", "ms": 120000 },
+    { "type": "wait", "ms": 500 }
+  ]
+}

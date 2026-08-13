@@ -1,0 +1,14 @@
+{
+	"required": true,
+	"package": "dev.skyscript.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"KeyboardInputMixin",
+		"InputAccessor",
+		"KeyboardAccessor",
+		"MouseAccessor"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}
