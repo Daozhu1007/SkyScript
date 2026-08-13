@@ -1,0 +1,29 @@
+{
+  "name": "坐标触发+回家示例",
+  "loop": 0,
+  "steps": [
+    {
+      "type": "loop",
+      "times": 5,
+      "body": [
+        {
+          "type": "hold",
+          "keys": ["A"],
+          "untilType": "position",
+          "cond": [ { "axis": "x", "op": "<=", "value": 100.5 } ]
+        },
+        { "type": "wait", "ms": 500 },
+        {
+          "type": "hold",
+          "keys": ["D"],
+          "untilType": "position",
+          "cond": [ { "axis": "x", "op": ">=", "value": 180.5 } ]
+        },
+        { "type": "wait", "ms": 500 }
+      ]
+    },
+    { "type": "command", "value": "/home" },
+    { "type": "wait", "ms": 3000 },
+    { "type": "press", "keys": ["PGDN"], "mode": "tap" }
+  ]
+}

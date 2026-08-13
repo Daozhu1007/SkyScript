@@ -1,0 +1,29 @@
+{
+    "schemaVersion":  1,
+    "id":  "sky_script",
+    "version":  "${version}",
+    "name":  "SkyScript",
+    "description":  "Programmable SkyBlock farming automation framework: JSON script engine (time/coordinate triggers), F8 master control (script + attack mode + external hotkeys), customizable HUD, in-game editor. Run /skyscript to open settings.",
+    "authors":  [
+                    "SkyScript"
+                ],
+    "license":  "MIT",
+    "environment":  "client",
+    "entrypoints":  {
+                        "client":  [
+                                       "dev.skyscript.SkyScriptClient"
+                                   ]
+                    },
+    "mixins":  [
+                   {
+                       "config":  "sky_script.mixins.json",
+                       "environment":  "client"
+                   }
+               ],
+    "depends":  {
+                    "fabricloader":  "\u003e=0.17.0",
+                    "fabric-api":  "*",
+                    "minecraft":  "~1.21.11",
+                    "java":  "\u003e=21"
+                }
+}

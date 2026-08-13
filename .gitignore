@@ -1,0 +1,21 @@
+# Gradle
+.gradle/
+build/
+out/
+.toolchain/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Runtime
+run/
+crash-reports/
