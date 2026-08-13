@@ -111,6 +111,24 @@ gradlew build          # 产物在 build/libs/
 
 工具链：JDK 21+、Gradle 9.5+（Loom 1.17.19 要求）、Fabric API 0.141.6+1.21.11、Yarn 1.21.11+build.6。
 
+## 推送到 GitHub（网络受限环境）
+
+本机网络环境过滤了 `github.com` 的 HTTPS（连接被重置），普通 `git push` 无法直连。
+已配置两种替代通道，**日常推送用脚本即可**：
+
+```powershell
+# 方式一（推荐，走 GitHub git-data API，经 api.github.com 可达）
+git add -A && git commit -m "你的提交信息"
+pwsh -File .toolchain\push-via-api.ps1
+
+# 方式二（SSH over 443，~/.ssh/config 已配置 ssh.github.com:443）
+# 需要先把本机 SSH 公钥注册到 GitHub 账号：gh auth refresh -h github.com -s admin:public_key && gh ssh-key add ~/.ssh/id_ed25519.pub
+git push origin main
+```
+
+> 注意：`.toolchain\` 已被 .gitignore 排除（存放 Gradle 发行版与推送脚本），不会进仓库。
+> 部署密钥已注册到仓库（只对 SkyScript 生效），待账号级 SSH 密钥就绪后可直接走方式二。
+
 ## 风险提示
 
 - 自动化挂机行为是否合规取决于服务器规则（Hypixel 等明令禁止 macro）；
