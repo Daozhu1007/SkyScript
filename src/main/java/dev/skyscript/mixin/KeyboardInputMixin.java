@@ -1,5 +1,6 @@
 package dev.skyscript.mixin;
 
+import dev.skyscript.config.SkyScriptConfig;
 import dev.skyscript.input.MovementController;
 import net.minecraft.client.input.KeyboardInput;
 import net.minecraft.util.PlayerInput;
@@ -17,6 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * movementVector = new Vec2f(左右, 前后)，其中左右轴 x=+1 为左（vanilla 的
  * getMovementMultiplier(left, right) 在 left 按下时返回 +1）。
  * MovementController.getSideways() 返回 A=-1/D=+1，因此 x 写入 -side。
+ * 设置 directionSwap=true 时翻转（诊断/环境兜底）。
  */
 @Mixin(KeyboardInput.class)
 public abstract class KeyboardInputMixin {
@@ -25,6 +27,7 @@ public abstract class KeyboardInputMixin {
     private void skyscript$apply(CallbackInfo ci) {
         if (!MovementController.active()) return;
         float side = MovementController.getSideways();
+        if (SkyScriptConfig.get().directionSwap) side = -side;
         float forward = MovementController.getForward();
         boolean jump = MovementController.isJumping();
         boolean sneak = MovementController.isSneaking();

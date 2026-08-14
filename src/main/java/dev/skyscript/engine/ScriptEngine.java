@@ -353,6 +353,16 @@ public final class ScriptEngine {
 
     // ---------- 触发键 ----------
 
+    /** 启动诊断：显示首步实际按键与注入方向（定位方向问题的临时手段） */
+    private void diagnosticStart() {
+        if (curStep != null && SkyScriptConfig.get().master.feedback) {
+            float x = -MovementController.getSideways();
+            if (SkyScriptConfig.get().directionSwap) x = -x;
+            String dir = x > 0 ? "左(x=+1)" : x < 0 ? "右(x=-1)" : "无";
+            Feedback.notify("§7[SkyScript] §f诊断: 首步=" + curStep.keys + " 注入" + dir);
+        }
+    }
+
     /** 进入世界时重置触发键历史状态，防止跨世界残留误触发 */
     public void resetTriggers() {
         prevTrigger.clear();
@@ -382,6 +392,7 @@ public final class ScriptEngine {
                 start(active);
                 if (KeyNames.isLateralKey(name)) applyLateralBias(lateralBias);
                 Feedback.notify("§a[SkyScript] §f触发启动: §e" + active.name + " §7(从 " + name + " 开始)");
+                diagnosticStart();
             } else {
                 handleRunTrigger(name);
             }

@@ -29,6 +29,9 @@ public class Settings {
     /** 设置键（默认 O），打开设置界面，可在设置里改名 */
     public String settingsKeyName = "O";
 
+    /** 方向交换（诊断用兜底）：true 时 A/D 注入方向翻转 */
+    public boolean directionSwap = false;
+
     public HudSettings hud = new HudSettings();
     public MasterSettings master = new MasterSettings();
 
@@ -81,6 +84,7 @@ public class Settings {
         if (masterKeyName == null) masterKeyName = "F8";
         if (editorKeyName == null) editorKeyName = "H";
         if (settingsKeyName == null) settingsKeyName = "O";
+        // directionSwap 是 boolean，无 null 问题，保持默认
         if (hud == null) hud = new HudSettings();
         if (hud.template == null) hud.template = "SkyScript §7{state} §f{script} §7{step} §f{timeLeft}s §7{attackMode}";
         if (hud.pos == null) hud.pos = "top-left";
@@ -98,6 +102,7 @@ public class Settings {
         masterKeyName = "F8";
         editorKeyName = "H";
         settingsKeyName = "O";
+        directionSwap = false;
         hud = new HudSettings();
         master = new MasterSettings();
         master.externalKeys.add(new MasterSettings.ExternalKey("PGDN", "inject"));

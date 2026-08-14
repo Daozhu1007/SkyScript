@@ -26,7 +26,7 @@ public class SettingsScreen extends Screen {
 
     private static final String[] LABELS = {
             "HUD 显示", "静默模式", "HUD 位置", "位置 X", "位置 Y", "缩放", "背景", "HUD 模板",
-            "运行中按当前键", "触发键 (逗号分隔)", "总控键", "编辑器键", "设置键",
+            "运行中按当前键", "触发键 (逗号分隔)", "总控键", "编辑器键", "设置键", "方向交换",
             "联动·脚本", "联动·攻击模式", "联动·HUD", "外部热键", "外部热键方式", "消息反馈"
     };
 
@@ -36,6 +36,7 @@ public class SettingsScreen extends Screen {
     private boolean hudEnabled, hudSilent, hudBackground;
     private String hudPos, hudX, hudY, hudScale, hudTemplate;
     private String curKeySem, triggerKeys, masterKeyName, editorKeyName, settingsKeyName;
+    private boolean directionSwap;
     private boolean mToggleScript, mToggleAttack, mToggleHud, mFeedback;
     private String extKey, extMethod;
 
@@ -59,6 +60,7 @@ public class SettingsScreen extends Screen {
         masterKeyName = s.masterKeyName;
         editorKeyName = s.editorKeyName;
         settingsKeyName = s.settingsKeyName;
+        directionSwap = s.directionSwap;
         mToggleScript = s.master.toggleScript;
         mToggleAttack = s.master.toggleAttackMode;
         mToggleHud = s.master.toggleHud;
@@ -102,12 +104,13 @@ public class SettingsScreen extends Screen {
                 case 10 -> addText(y, ctrlW, masterKeyName, v -> masterKeyName = v);
                 case 11 -> addText(y, ctrlW, editorKeyName, v -> editorKeyName = v);
                 case 12 -> addText(y, ctrlW, settingsKeyName, v -> settingsKeyName = v);
-                case 13 -> addToggle(y, mToggleScript, v -> { mToggleScript = v; refresh(); });
-                case 14 -> addToggle(y, mToggleAttack, v -> { mToggleAttack = v; refresh(); });
-                case 15 -> addToggle(y, mToggleHud, v -> { mToggleHud = v; refresh(); });
-                case 16 -> addText(y, ctrlW, extKey, v -> extKey = v);
-                case 17 -> addCycle(y, extMethod, METHODS, v -> { extMethod = v; refresh(); });
-                case 18 -> addToggle(y, mFeedback, v -> { mFeedback = v; refresh(); });
+                case 13 -> addToggle(y, directionSwap, v -> { directionSwap = v; refresh(); });
+                case 14 -> addToggle(y, mToggleScript, v -> { mToggleScript = v; refresh(); });
+                case 15 -> addToggle(y, mToggleAttack, v -> { mToggleAttack = v; refresh(); });
+                case 16 -> addToggle(y, mToggleHud, v -> { mToggleHud = v; refresh(); });
+                case 17 -> addText(y, ctrlW, extKey, v -> extKey = v);
+                case 18 -> addCycle(y, extMethod, METHODS, v -> { extMethod = v; refresh(); });
+                case 19 -> addToggle(y, mFeedback, v -> { mFeedback = v; refresh(); });
                 default -> {
                 }
             }
@@ -161,6 +164,7 @@ public class SettingsScreen extends Screen {
         s.masterKeyName = masterKeyName.trim().toUpperCase();
         s.editorKeyName = editorKeyName.trim().toUpperCase();
         s.settingsKeyName = settingsKeyName.trim().toUpperCase();
+        s.directionSwap = directionSwap;
         s.master.toggleScript = mToggleScript;
         s.master.toggleAttackMode = mToggleAttack;
         s.master.toggleHud = mToggleHud;
