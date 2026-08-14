@@ -66,14 +66,12 @@ public class SkyScriptScreen extends Screen {
     private static final class LabelDrawable implements Element, Drawable, Selectable {
         private final Text text;
         private final int x, y;
-        private final int color;
         private final boolean bar; // 是否画深色底（列表行用）
 
-        LabelDrawable(String text, int x, int y, int color, boolean bar) {
+        LabelDrawable(String text, int x, int y, boolean bar) {
             this.text = Text.literal(text);
             this.x = x;
             this.y = y;
-            this.color = color;
             this.bar = bar;
         }
 
@@ -83,7 +81,8 @@ public class SkyScriptScreen extends Screen {
                 int w = MinecraftClient.getInstance().getWindow().getScaledWidth();
                 ctx.fill(x - 4, y - 2, w - 250, y + 16, 0x65000000);
             }
-            ctx.drawText(MinecraftClient.getInstance().textRenderer, text, x, y, color, true);
+            // 用立即绘制的 DrawnTextConsumer（按钮同款），不用 ctx.drawText（延迟队列，实测渲染不出来）
+            ctx.getTextConsumer().text(x, y, text);
         }
 
         // ---- Element / Selectable 的 no-op（纯显示控件，不参与交互/焦点/旁白） ----
@@ -232,13 +231,13 @@ public class SkyScriptScreen extends Screen {
     /** 加一个标签控件（flag: 1=区块标题金 / 2=灰色提示 / 3=深色底列表行 / 0=普通白字） */
     private void rowLabel(String text, int y, int flag) {
         if (!visible(y)) return;
-        int color = switch (flag) {
-            case 1 -> 0xFFD67E;
-            case 2 -> 0xAAAAAA;
-            case 3 -> 0xFFFFFF;
-            default -> 0xFFFFFF;
+        String colored = switch (flag) {
+            case 1 -> "§e§l" + text;
+            case 2 -> "§7" + text;
+            case 3 -> text;
+            default -> text;
         };
-        addDrawableChild(new LabelDrawable(text, LABEL_X, y, color, flag == 3));
+        addDrawableChild(new LabelDrawable(colored, LABEL_X, y, flag == 3));
     }
 
     private int ctrlX() {
@@ -337,7 +336,7 @@ public class SkyScriptScreen extends Screen {
         }).dimensions(6, h - 40, SIDEBAR_W - 12, 20).build());
 
         nextRow = 0;
-        addDrawableChild(new LabelDrawable("SkyScript 控制台", 6, 6, 0xFFFFFF, false));
+        addDrawableChild(new LabelDrawable("§fSkyScript 控制台", 6, 6, false));
         switch (tab) {
             case MAIN -> buildMainTab();
             case HUD -> buildHudTab();
