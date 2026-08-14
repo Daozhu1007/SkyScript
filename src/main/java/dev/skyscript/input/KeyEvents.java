@@ -22,7 +22,20 @@ public final class KeyEvents {
     private static final Map<Integer, Long> keyUpTimes = new HashMap<>();
     private static final Map<Integer, Long> keyUpDurations = new HashMap<>();
 
+    /** 注入标记：KeySimulator 注入事件时置 true，KeyEventCatcher 据此跳过，防止注入触发"幻影点击" */
+    private static boolean injecting;
+
     private KeyEvents() {
+    }
+
+    /** 由 KeySimulator 设置：注入事件期间为 true，真实用户按键事件期间为 false */
+    public static void setInjecting(boolean value) {
+        injecting = value;
+    }
+
+    /** 当前事件是否来自脚本注入（而非真实按键） */
+    public static boolean isInjecting() {
+        return injecting;
     }
 
     /** 由 mixin 调用：记录按下（GLFW keycode） */

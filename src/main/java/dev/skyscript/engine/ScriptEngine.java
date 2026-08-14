@@ -70,6 +70,7 @@ public final class ScriptEngine {
     private Script script;
     private Step curStep;
     private boolean running;
+    private boolean armed;   // F8 总开关：只有 arm 后触发键才响应（恢复 AHK「#HotIf FeatureOn()」语义）
     private boolean frozen;
     private long frozenSince;
     private long phaseStartMs;
@@ -90,6 +91,19 @@ public final class ScriptEngine {
         return running;
     }
 
+    /** F8 总开关状态：true=已开启（触发键可用），false=已关闭（A/D 完全恢复正常移动） */
+    public boolean isArmed() {
+        return armed;
+    }
+
+    /** 设置总开关；关闭时若脚本在运行则一并停止（保证 running ⇒ armed）。 */
+    public void setArmed(boolean armed) {
+        this.armed = armed;
+        if (!armed) {
+            stop();
+        }
+    }
+
     public boolean isFrozen() {
         return frozen;
     }
@@ -103,7 +117,7 @@ public final class ScriptEngine {
     }
 
     public String getStateText() {
-        if (!running) return "空闲";
+        if (!running) return armed ? "待命" : "空闲";
         return frozen ? "暂停" : "运行";
     }
 
@@ -169,6 +183,7 @@ public final class ScriptEngine {
                 frozen = true;
                 frozenSince = nowMs();
                 MovementController.clear();
+                releaseRobotKeys();   // 打开界面时释放 OS 级按住的键，避免卡键
             }
             return;
         }
@@ -177,6 +192,10 @@ public final class ScriptEngine {
             phaseStartMs += d;
             holdUntilMs += d;
             frozen = false;
+            // 界面关闭恢复：重新按住当前 hold 步骤的非移动键（冻结时被释放）
+            if (running && curStep != null && isHoldLike(curStep) && curStep.keys != null) {
+                pressRobotKeys(curStep.keys);
+            }
         }
 
         long now = nowMs();
@@ -248,6 +267,7 @@ public final class ScriptEngine {
         f.index = index;
         curStep = f.steps.get(index);
         phaseStartMs = nowMs();
+        releaseRobotKeys();   // 步骤切换：先释放上一轮的非移动键，避免泄漏到下个步骤
         switch (curStep.type) {
             case "wait" -> holdUntilMs = nowMs() + Math.max(0, curStep.ms < 0 ? 0 : curStep.ms);
             case "hold" -> setupHold();
@@ -291,17 +311,22 @@ public final class ScriptEngine {
             String k = keys.get(0);
             if ("A".equals(k) || "D".equals(k)) lateralKey = k;
         }
-        // 非移动键 → Robot 按住
-        for (String k : keys) {
-            Integer code = KeyNames.glfwOf(k);
-            if (code == null || KeyNames.isMovementKey(code)) continue;
-            if (OsKeySimulator.press(code)) robotHeld.add(k);
-        }
+        // 非移动键 → Robot 按住（enterStep 已先 releaseRobotKeys 清理上一轮残留）
+        pressRobotKeys(keys);
         String ut = curStep.untilType == null ? "time" : curStep.untilType;
         if ("time".equals(ut)) {
             holdUntilMs = nowMs() + Math.max(0, curStep.ms < 0 ? 120000 : curStep.ms);
         } else {
             holdUntilMs = Long.MAX_VALUE;
+        }
+    }
+
+    /** 用 Robot 按住一组键中的非移动键（移动键走 MovementController，不走 OS 层） */
+    private void pressRobotKeys(List<String> keys) {
+        for (String k : keys) {
+            Integer code = KeyNames.glfwOf(k);
+            if (code == null || KeyNames.isMovementKey(code)) continue;
+            if (OsKeySimulator.press(code)) robotHeld.add(k);
         }
     }
 
@@ -353,13 +378,18 @@ public final class ScriptEngine {
 
     // ---------- 触发键 ----------
 
-    /** 启动诊断：显示首步实际按键与注入方向（定位方向问题的临时手段） */
+    /** 启动诊断：直接从首步按键计算注入方向（A=-1, D=+1），不读尚未写入的控制器状态 */
     private void diagnosticStart() {
         if (curStep != null && SkyScriptConfig.get().master.feedback) {
-            float x = -MovementController.getSideways();
-            if (SkyScriptConfig.get().directionSwap) x = -x;
-            String dir = x > 0 ? "左(x=+1)" : x < 0 ? "右(x=-1)" : "无";
-            Feedback.notify("§7[SkyScript] §f诊断: 首步=" + curStep.keys + " 注入" + dir);
+            String keys = curStep.keys == null ? "[]" : curStep.keys.toString();
+            float side = 0;
+            if (curStep.keys != null) {
+                if (curStep.keys.contains("A")) side -= 1;
+                if (curStep.keys.contains("D")) side += 1;
+            }
+            if (SkyScriptConfig.get().directionSwap) side = -side;
+            String dir = side < 0 ? "左(x=+1)" : side > 0 ? "右(x=-1)" : "无";
+            Feedback.notify("§7[SkyScript] §f诊断: 首步=" + keys + " 注入" + dir);
         }
     }
 
@@ -374,6 +404,9 @@ public final class ScriptEngine {
      * 语义与 AHK 的 key-up 触发一致，快速点击也不会漏检。
      */
     private void pollTriggers(MinecraftClient client) {
+        // 未开启（F8 未 arm）时触发键完全不响应 —— 恢复 AHK「#HotIf FeatureOn()」语义：
+        // 进游戏默认/关闭总开关后，A/D 只是普通移动键，怎么按都不会误启动脚本。
+        if (!armed) return;
         // 打开界面时不响应触发键（冻结期间保持静默）
         if (client.currentScreen != null) return;
         List<String> triggers = SkyScriptConfig.get().triggerKeys;
@@ -387,7 +420,10 @@ public final class ScriptEngine {
 
             if (!running) {
                 Script active = SkyScriptConfig.getActiveScript();
-                if (active == null) continue;
+                if (active == null) {
+                    Feedback.notify("§6[SkyScript] §f没有活动方案: 按 §eH §f或 §e/skyscript editor§f 选「活动」");
+                    continue;
+                }
                 if (KeyNames.isLateralKey(name)) lateralBias = name;
                 start(active);
                 if (KeyNames.isLateralKey(name)) applyLateralBias(lateralBias);

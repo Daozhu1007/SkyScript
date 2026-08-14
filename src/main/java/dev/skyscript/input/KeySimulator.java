@@ -32,8 +32,13 @@ public final class KeySimulator {
         if (c == null || c.currentScreen != null) return;
         long w = c.getWindow().getHandle();
         KeyboardAccessor ka = (KeyboardAccessor) c.keyboard;
-        ka.skyScript$onKey(w, GLFW.GLFW_PRESS, new KeyInput(glfw, 0, 0));
-        ka.skyScript$onKey(w, GLFW.GLFW_RELEASE, new KeyInput(glfw, 0, 0));
+        KeyEvents.setInjecting(true);
+        try {
+            ka.skyScript$onKey(w, GLFW.GLFW_PRESS, new KeyInput(glfw, 0, 0));
+            ka.skyScript$onKey(w, GLFW.GLFW_RELEASE, new KeyInput(glfw, 0, 0));
+        } finally {
+            KeyEvents.setInjecting(false);
+        }
     }
 
     public static void tapMouseLeft() {
@@ -41,7 +46,12 @@ public final class KeySimulator {
         if (c == null || c.currentScreen != null) return;
         long w = c.getWindow().getHandle();
         MouseAccessor ma = (MouseAccessor) c.mouse;
-        ma.skyScript$onMouseButton(w, new MouseInput(GLFW.GLFW_MOUSE_BUTTON_LEFT, 0), GLFW.GLFW_PRESS);
-        ma.skyScript$onMouseButton(w, new MouseInput(GLFW.GLFW_MOUSE_BUTTON_LEFT, 0), GLFW.GLFW_RELEASE);
+        KeyEvents.setInjecting(true);
+        try {
+            ma.skyScript$onMouseButton(w, new MouseInput(GLFW.GLFW_MOUSE_BUTTON_LEFT, 0), GLFW.GLFW_PRESS);
+            ma.skyScript$onMouseButton(w, new MouseInput(GLFW.GLFW_MOUSE_BUTTON_LEFT, 0), GLFW.GLFW_RELEASE);
+        } finally {
+            KeyEvents.setInjecting(false);
+        }
     }
 }

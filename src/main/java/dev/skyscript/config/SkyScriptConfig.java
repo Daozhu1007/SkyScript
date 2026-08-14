@@ -107,14 +107,10 @@ public final class SkyScriptConfig {
         }
     }
 
+    /** 活动方案：只有用户在编辑器里显式设为「活动」才返回；未设置返回 null（不再自动选第一个）。 */
     public static Script getActiveScript() {
-        Script s = loadScript(settings.activeScript);
-        if (s != null) return s;
-        List<Script> all = listScripts();
-        if (all.isEmpty()) return null;
-        settings.activeScript = all.get(0).name;
-        save();
-        return all.get(0);
+        if (settings.activeScript == null || settings.activeScript.isEmpty()) return null;
+        return loadScript(settings.activeScript);
     }
 
     private static String sanitize(String name) {

@@ -18,6 +18,8 @@ public abstract class KeyEventCatcher {
 
     @Inject(method = "onKey", at = @At("HEAD"))
     private void skyScript$onKey(long window, int action, KeyInput input, CallbackInfo ci) {
+        // 脚本自己注入的事件（KeySimulator）不应被当作真实按键记录，否则会触发"幻影点击"
+        if (KeyEvents.isInjecting()) return;
         if (action == GLFW.GLFW_PRESS) {
             KeyEvents.onKeyDown(input.key());
         } else if (action == GLFW.GLFW_RELEASE) {

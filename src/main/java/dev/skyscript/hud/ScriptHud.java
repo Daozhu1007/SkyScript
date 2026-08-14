@@ -64,6 +64,7 @@ public final class ScriptHud {
         return switch (state) {
             case "运行" -> 0xFF55FF55;
             case "暂停" -> 0xFFFFFF55;
+            case "待命" -> 0xFF55FFFF;   // 已开启(F8 arm)但脚本未运行
             default -> 0xFFAAAAAA;
         };
     }

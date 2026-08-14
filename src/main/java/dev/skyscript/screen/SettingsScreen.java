@@ -27,7 +27,8 @@ public class SettingsScreen extends Screen {
     private static final String[] LABELS = {
             "HUD 显示", "静默模式", "HUD 位置", "位置 X", "位置 Y", "缩放", "背景", "HUD 模板",
             "运行中按当前键", "触发键 (逗号分隔)", "总控键", "编辑器键", "设置键", "方向交换",
-            "联动·脚本", "联动·攻击模式", "联动·HUD", "外部热键", "外部热键方式", "消息反馈"
+            "联动·脚本", "联动·攻击模式", "联动·HUD", "外部热键", "外部热键方式", "消息反馈",
+            "进游戏自动开启"
     };
 
     private int scroll;
@@ -37,7 +38,7 @@ public class SettingsScreen extends Screen {
     private String hudPos, hudX, hudY, hudScale, hudTemplate;
     private String curKeySem, triggerKeys, masterKeyName, editorKeyName, settingsKeyName;
     private boolean directionSwap;
-    private boolean mToggleScript, mToggleAttack, mToggleHud, mFeedback;
+    private boolean mToggleScript, mToggleAttack, mToggleHud, mFeedback, mArmedOnJoin;
     private String extKey, extMethod;
 
     public SettingsScreen() {
@@ -65,6 +66,7 @@ public class SettingsScreen extends Screen {
         mToggleAttack = s.master.toggleAttackMode;
         mToggleHud = s.master.toggleHud;
         mFeedback = s.master.feedback;
+        mArmedOnJoin = s.master.armedOnJoin;
         extKey = s.master.externalKeys.isEmpty() ? "" : s.master.externalKeys.get(0).key;
         extMethod = s.master.externalKeys.isEmpty() ? "inject" : s.master.externalKeys.get(0).method;
     }
@@ -111,6 +113,7 @@ public class SettingsScreen extends Screen {
                 case 17 -> addText(y, ctrlW, extKey, v -> extKey = v);
                 case 18 -> addCycle(y, extMethod, METHODS, v -> { extMethod = v; refresh(); });
                 case 19 -> addToggle(y, mFeedback, v -> { mFeedback = v; refresh(); });
+                case 20 -> addToggle(y, mArmedOnJoin, v -> { mArmedOnJoin = v; refresh(); });
                 default -> {
                 }
             }
@@ -169,6 +172,7 @@ public class SettingsScreen extends Screen {
         s.master.toggleAttackMode = mToggleAttack;
         s.master.toggleHud = mToggleHud;
         s.master.feedback = mFeedback;
+        s.master.armedOnJoin = mArmedOnJoin;
         if (s.master.externalKeys.isEmpty()) s.master.externalKeys.add(new Settings.MasterSettings.ExternalKey());
         s.master.externalKeys.get(0).key = extKey.trim().toUpperCase();
         s.master.externalKeys.get(0).method = extMethod;

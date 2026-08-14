@@ -8,8 +8,11 @@ import java.util.List;
  */
 public class Settings {
 
-    /** 运行中按当前方向键：stop=停止 / ignore=无操作 */
-    public String currentKeySemantics = "ignore";
+    /** 配置文件版本：<2 视为旧版，加载时迁移（见 applyDefaults） */
+    public int version = 0;
+
+    /** 运行中按当前方向键：stop=停止 / ignore=无操作（默认 stop，与原 AHK 一致） */
+    public String currentKeySemantics = "stop";
 
     /** 运行中按另一个方向键：switch=切换方向 */
     public String otherKeySemantics = "switch";
@@ -49,14 +52,16 @@ public class Settings {
     }
 
     public static class MasterSettings {
-        /** 总控键是否启停脚本 */
+        /** F8 是否控制脚本总开关（arm/disarm，见 ScriptEngine.isArmed） */
         public boolean toggleScript = true;
-        /** 总控键是否切换攻击/摧毁模式（配合左键锁定） */
+        /** F8 是否切换攻击/摧毁模式（配合左键锁定） */
         public boolean toggleAttackMode = true;
-        /** 总控键是否切换 HUD 显示（默认关：HUD 只在设置界面里开关） */
+        /** F8 联动 HUD：开启联动后，F8 开启时显示 HUD、关闭时隐藏（默认关，HUD 主开关在设置界面） */
         public boolean toggleHud = false;
         /** 启动/停止时是否发送聊天反馈消息 */
         public boolean feedback = true;
+        /** 进游戏/进世界时是否默认处于"已开启"状态（默认关，与原 AHK 的 F8 总开关一致） */
+        public boolean armedOnJoin = false;
         /** 总控键按下时额外触发的按键（如 Lunar/SkyHanni 的锁定鼠标热键） */
         public List<ExternalKey> externalKeys = new ArrayList<>();
 
@@ -75,9 +80,9 @@ public class Settings {
         }
     }
 
-    /** 反序列化后补齐默认值（JSON 里缺失的字段会是 null） */
+    /** 反序列化后补齐默认值（JSON 里缺失的字段会是 null），并做版本迁移 */
     public void applyDefaults() {
-        if (currentKeySemantics == null) currentKeySemantics = "ignore";
+        if (currentKeySemantics == null) currentKeySemantics = "stop";
         if (otherKeySemantics == null) otherKeySemantics = "switch";
         if (triggerKeys == null) triggerKeys = new ArrayList<>(List.of("A", "D"));
         if (activeScript == null) activeScript = "";
@@ -91,11 +96,21 @@ public class Settings {
         if (master == null) master = new MasterSettings();
         if (master.externalKeys == null) master.externalKeys = new ArrayList<>();
         if (master.externalKeys.isEmpty()) master.externalKeys.add(new MasterSettings.ExternalKey("PGDN", "inject"));
+        // v2 迁移：
+        //  1) 旧版本把 HUD 开关错误地绑到了 F8（toggleHud=true 残留），一律清理；
+        //  2) 旧默认 currentKeySemantics=ignore 偏离了 AHK"再按当前键=停止"的语义，回正为 stop。
+        // 迁移后保留用户后续在设置界面里的显式选择。
+        if (version < 2) {
+            master.toggleHud = false;
+            if ("ignore".equals(currentKeySemantics)) currentKeySemantics = "stop";
+            version = 2;
+        }
     }
 
     /** 恢复出厂默认（仅内存，点保存后落盘） */
     public void resetToDefaults() {
-        currentKeySemantics = "ignore";
+        version = 2;
+        currentKeySemantics = "stop";
         otherKeySemantics = "switch";
         triggerKeys = new ArrayList<>(List.of("A", "D"));
         activeScript = "";

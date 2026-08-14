@@ -49,10 +49,12 @@ public class SkyScriptClient implements ClientModInitializer {
             ScriptEngine.INSTANCE.stop();
             ScriptEngine.INSTANCE.resetTriggers();
         });
-        // 进入世界：重置所有按键历史状态，防止跨世界残留导致误触发
+        // 进入世界：重置所有按键历史状态，防止跨世界残留导致误触发；
+        // 并按「进游戏自动开启」配置设置 F8 总开关状态（默认关闭）。
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             ScriptEngine.INSTANCE.stop();
             ScriptEngine.INSTANCE.resetTriggers();
+            ScriptEngine.INSTANCE.setArmed(SkyScriptConfig.get().master.armedOnJoin);
             prevKeyStates.clear();
         });
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {

@@ -33,6 +33,7 @@ public abstract class KeyboardInputMixin {
         boolean sneak = MovementController.isSneaking();
         InputAccessor accessor = (InputAccessor) (Object) this;
         accessor.skyScript$setPlayerInput(new PlayerInput(forward > 0, forward < 0, side < 0, side > 0, jump, sneak, false));
-        accessor.skyScript$setMovementVector(new Vec2f(-side, forward));
+        // 与 vanilla 一致：movementVector 需 normalize，否则对角方向（如 A+W）移动速度会偏快 √2 倍
+        accessor.skyScript$setMovementVector(new Vec2f(-side, forward).normalize());
     }
 }

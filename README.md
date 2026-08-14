@@ -25,10 +25,10 @@ SkyScript evolved from a simple AutoHotkey script (`AutoKey.ahk`) into a full in
 1. In-game, run **`/skyscript`** (opens Settings) or press **H** (opens the script editor). With [Mod Menu](https://modrinth.com/mod/modmenu) installed, the "Settings" entry for SkyScript is also available from the mod list.
 2. In the script editor, select "New Script" — a default AHK-style A/D alternation template is generated (120 s per row, 0.5 s pause between rows).
 3. Press "Done" to save and return to the game.
-4. Press **F8** to start everything at once: script begins, attack/destroy mode switches to *toggle* (one click latches continuous harvesting), and the external hotkey (default `PgDn`, e.g. your mouse-lock binding) is triggered. Chat feedback confirms the action.
-5. Press **F8** again to stop: script halts, attack/destroy mode reverts to *hold*, and the external hotkey is triggered once more.
+4. Press **F8** to enable the automation (master switch, like the original AHK's F8). This only *arms* it — the script does **not** start yet. Chat feedback confirms.
+5. **Click A or D** (short click, release edge) to start the active script. While running, click the *other* direction key to switch direction, or the current key to stop (configurable). Press **F8** again to stop everything and *disarm* — after that A/D are normal movement keys again and cannot accidentally restart the script until you press F8 again.
 
-Alternatively, start a script by **clicking A or D** (release-edge trigger). While running, press the other direction key to switch direction, or the current key to stop (configurable).
+> By default the automation is **off** when you join a world. If you want it armed automatically, enable **"进游戏自动开启"** in the settings screen. HUD shows **待命 (cyan)** when armed-but-idle.
 
 ## Entry Points and Key Bindings
 
@@ -39,8 +39,8 @@ Alternatively, start a script by **clicking A or D** (release-edge trigger). Whi
 | `/skyscript help` | Show command help |
 | Mod Menu → SkyScript → Settings | Same as `/skyscript` (requires Mod Menu) |
 | H | Open the script editor (renamable in settings) |
-| F8 | Master control: script toggle + attack/destroy mode + external hotkeys + HUD toggle (all configurable; the key itself is renamable in settings) |
-| A / D | Start the active script when idle (release-edge trigger); switch direction / stop while running (configurable semantics) |
+| F8 | **Master switch (arm/disarm)**: enables automation (script starts only when you click a trigger key, default A/D) and runs the linked actions (attack/destroy mode + external hotkeys + optional HUD). Pressing again stops and disarms everything. The key itself is renamable in settings |
+| A / D | Start the active script when armed and idle (release-edge trigger); switch direction / stop while running (configurable) |
 
 > Key detection is dual-channel (GLFW polling + KeyBinding) and remains responsive under any timing conditions.
 > All start/stop/direction-switch actions produce chat feedback (configurable). The HUD line color reflects state: **running = green / frozen = yellow / idle = gray**.
