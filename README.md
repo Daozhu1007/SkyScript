@@ -1,54 +1,55 @@
 # SkyScript
 
-> 可编程的 Skyblock 种田自动化 Fabric Mod（纯客户端，Minecraft 1.21.11）
+> A programmable SkyBlock farming automation framework for Minecraft 1.21.11 (client-side Fabric mod).
 
-从 `AutoKey.ahk`（AHK 脚本）进化而来的游戏内自动化框架：JSON 步骤式脚本（时间 / 坐标 / 手动触发）、F8 一键总控（脚本 + 攻击/摧毁切换 + 外部热键联动 + HUD）、游戏内编辑器、Lunar 风格可自定义 HUD。
+SkyScript evolved from a simple AutoHotkey script (`AutoKey.ahk`) into a full in-game automation framework: JSON step-based scripts (time / coordinate / manual triggers), a one-key master control (script toggle + attack/destroy mode switch + external hotkey triggers + HUD toggle), an in-game script editor, and a fully customizable Lunar-style HUD.
 
-## 目录
+## Repository Layout
 
-| 文件 | 说明 |
+| Path | Description |
 |---|---|
-| `DESIGN.md` | 设计定稿（架构 / DSL / 状态机 / 输入层 / 里程碑 / 风险） |
-| `AutoKey.ahk` | 原脚本（历史参考） |
-| `examples/` | 示例脚本 JSON |
-| `build/libs/skyscript-0.1.0.jar` | **成品 mod（构建产物）** |
+| `DESIGN.md` | Design specification (architecture / DSL / state machine / input layers / milestones / risks) |
+| `AutoKey.ahk` | Original AHK script (historical reference) |
+| `examples/` | Example script JSON files |
+| `build/libs/skyscript-0.1.1.jar` | **Release artifact (build output)** |
+| `.toolchain/` | Local toolchain (Gradle distribution, push script). Git-ignored; not part of the repository. |
 
-## 安装
+## Installation
 
-1. 需要 [Fabric Loader](https://fabricmc.net/use/)（0.17+）和 [Fabric API](https://modrinth.com/mod/fabric-api)（1.21.11 版本），客户端为 1.21.11；
-2. 把 `build/libs/skyscript-0.1.0.jar` 放进 `.minecraft/mods/`；
-3. （可选）Lunar Client 若支持 Fabric mod 加载，可直接放入；否则用纯 Fabric 客户端 + Modrinth 版 SkyHanni。
+1. Requirements: [Fabric Loader](https://fabricmc.net/use/) (0.17+), [Fabric API](https://modrinth.com/mod/fabric-api) (1.21.11 build), Minecraft 1.21.11 (Java 21+).
+2. Copy `build/libs/skyscript-0.1.1.jar` into `.minecraft/mods/`.
+3. Optional: if your environment supports loading Fabric mods (e.g. Lunar Client with Fabric support), the mod may be placed there as well; otherwise use a plain Fabric client with the Modrinth build of SkyHanni.
 
-## 快速上手
+## Quick Start
 
-1. 进游戏后输入 **`/skyscript`**（打开设置）或按 **H**（打开方案编辑器）——装了 Mod Menu 的话，mod 列表里点 SkyScript 的「设置」也可以；
-2. 方案编辑器里「新建方案」→ 默认生成 AHK 风格的 A/D 交替模板（各 120 秒，间隔 0.5 秒）；
-3. 「完成」保存，回到游戏；
-4. 按 **F8** 一键开跑：脚本开始 + 攻击模式切为"切换"（点一下自动连收割）+ 触发外部热键（默认 PgDn，即你绑的锁定鼠标），**聊天框会给出反馈**（可关）；
-5. 再按 **F8** 停止：脚本停 + 攻击模式恢复"长按" + 再触发一次 PgDn。
+1. In-game, run **`/skyscript`** (opens Settings) or press **H** (opens the script editor). With [Mod Menu](https://modrinth.com/mod/modmenu) installed, the "Settings" entry for SkyScript is also available from the mod list.
+2. In the script editor, select "New Script" — a default AHK-style A/D alternation template is generated (120 s per row, 0.5 s pause between rows).
+3. Press "Done" to save and return to the game.
+4. Press **F8** to start everything at once: script begins, attack/destroy mode switches to *toggle* (one click latches continuous harvesting), and the external hotkey (default `PgDn`, e.g. your mouse-lock binding) is triggered. Chat feedback confirms the action.
+5. Press **F8** again to stop: script halts, attack/destroy mode reverts to *hold*, and the external hotkey is triggered once more.
 
-也可以不按 F8，直接**单击 A 或 D** 启动（抬起触发），运行中按另一个方向键切换方向、再按当前键停止（可在设置里改为"忽略"）。
+Alternatively, start a script by **clicking A or D** (release-edge trigger). While running, press the other direction key to switch direction, or the current key to stop (configurable).
 
-## 入口与快捷键
+## Entry Points and Key Bindings
 
-| 入口 | 功能 |
+| Entry | Function |
 |---|---|
-| `/skyscript` | 打开**设置界面**（HUD 位置/模板/缩放、按键语义、触发键、F8 联动、外部热键、反馈开关） |
-| `/skyscript editor` | 打开方案编辑器 |
-| `/skyscript help` | 帮助 |
-| Mod Menu → SkyScript → 设置 | 同上（需安装 [Mod Menu](https://modrinth.com/mod/modmenu)） |
-| H | 快捷键打开方案编辑器（可在设置里改名） |
-| F8 | 总控：脚本启停 + 攻击/摧毁模式切换 + 外部热键 + HUD 开关（均可配置，键名可在设置里改） |
-| A / D | 空闲时启动方案（抬起触发）；运行中切换方向 / 停止（语义可配置） |
+| `/skyscript` | Open the **settings screen** (HUD position/template/scale, key semantics, trigger keys, F8 action toggles, external hotkeys, feedback toggle) |
+| `/skyscript editor` | Open the script editor |
+| `/skyscript help` | Show command help |
+| Mod Menu → SkyScript → Settings | Same as `/skyscript` (requires Mod Menu) |
+| H | Open the script editor (renamable in settings) |
+| F8 | Master control: script toggle + attack/destroy mode + external hotkeys + HUD toggle (all configurable; the key itself is renamable in settings) |
+| A / D | Start the active script when idle (release-edge trigger); switch direction / stop while running (configurable semantics) |
 
-> 按键检测为双通道（GLFW 轮询 + KeyBinding），任何情况下都保证响应。
-> 启动/停止/切换方向都会有聊天反馈；HUD 整行颜色随状态变化：**运行=绿 / 暂停=黄 / 空闲=灰**。
+> Key detection is dual-channel (GLFW polling + KeyBinding) and remains responsive under any timing conditions.
+> All start/stop/direction-switch actions produce chat feedback (configurable). The HUD line color reflects state: **running = green / frozen = yellow / idle = gray**.
 
-## 脚本格式（config/sky_script/scripts/*.json）
+## Script Format (`config/sky_script/scripts/*.json`)
 
 ```json
 {
-  "name": "自动种田-南瓜田",
+  "name": "pumpkin-farm",
   "loop": 0,
   "steps": [
     {
@@ -68,85 +69,81 @@
 }
 ```
 
-| 步骤类型 | 字段 | 说明 |
+| Step type | Fields | Description |
 |---|---|---|
-| `hold` | `keys` + `untilType` | 按住一组键直到条件满足；`untilType`: `time`(配 `ms`) / `position`(配 `cond` 轴+比较符+值) / `manual` |
-| `wait` | `ms` | 等待毫秒数 |
-| `press` | `keys` + `mode` | `tap` 点按 / `hold` 按住（hold 模式同上配 `untilType`） |
-| `command` | `value` | 发送指令，如 `/home`（不进聊天框） |
-| `loop` | `times` + `body` | 循环体重复 N 次 |
+| `hold` | `keys`, `untilType` | Hold a set of keys until a condition is met; `untilType`: `time` (with `ms`), `position` (with `cond` axis/operator/value), or `manual` |
+| `wait` | `ms` | Wait for the given number of milliseconds |
+| `press` | `keys`, `mode` | `tap` (instant press-release) or `hold` (hold until condition, same `untilType` semantics) |
+| `command` | `value` | Send a chat command, e.g. `/home` (bypasses the chat UI) |
+| `loop` | `times`, `body` | Repeat the body `times` times |
 
-- 方案级 `loop`：`0` = 无限循环直到手动停（默认），`N` = 整份跑 N 轮后停；
-- 键名写法：`A` `D` `W` `S` `SPACE` `LSHIFT` `F1`~`F24` `PGDN` `PGUP` `ENTER` `ESC` 等（编辑器里可"录制按键"）；
-- **方向交替**：脚本里横向 hold 步骤（单个 A/D 键）按位置交替规则映射——用 A 启动就是 A,D,A,D…，用 D 启动就是 D,A,D,A…，运行中切换也遵循此规则（同原 AHK 行为）。
+- Script-level `loop`: `0` = run indefinitely until stopped manually (default); `N` = stop after N full rounds.
+- Key names: `A` `D` `W` `S` `SPACE` `LSHIFT` `F1`–`F24` `PGDN` `PGUP` `ENTER` `ESC`, etc. (the editor supports key recording).
+- **Direction alternation**: lateral hold steps (a single A/D key) are mapped positionally — starting with A yields A,D,A,D…, starting with D yields D,A,D,A…, and switching mid-run follows the same rule (matches the original AHK behavior).
 
-## 全局设置（config/sky_script/settings.json）
+## Global Settings (`config/sky_script/settings.json`)
 
 ```json
 {
-  "currentKeySemantics": "ignore",        // 运行中按当前方向键: stop=停止 / ignore=无操作
-  "otherKeySemantics": "switch",          // 运行中按另一个方向键: switch=切换
-  "triggerKeys": ["A", "D"],              // 空闲时启动脚本的键
-  "activeScript": "自动种田-南瓜田",        // F8/触发键启动的方案
+  "currentKeySemantics": "ignore",
+  "otherKeySemantics": "switch",
+  "triggerKeys": ["A", "D"],
+  "activeScript": "pumpkin-farm",
+  "masterKeyName": "F8",
+  "editorKeyName": "H",
   "hud": {
-    "enabled": true, "silent": false,     // silent=静默模式(完全不渲染)
+    "enabled": true, "silent": false,
     "template": "SkyScript §7{state} §f{script} §7{step} §f{timeLeft}s §7{attackMode}",
     "pos": "top-left", "x": 4, "y": 4, "background": true, "scale": 1.0
   },
   "master": {
-    "toggleScript": true, "toggleAttackMode": true, "toggleHud": true,
+    "toggleScript": true, "toggleAttackMode": true, "toggleHud": true, "feedback": true,
     "externalKeys": [ { "key": "PGDN", "method": "inject" } ]
   }
 }
 ```
 
-HUD 占位符：`{state}` `{script}` `{step}` `{col}` `{total}` `{timeLeft}` `{attackMode}`。
-外部热键 `method`：`inject`（游戏内事件注入，走 MC 键位系统，如 SkyHanni）/ `os`（OS 级模拟，给收不到游戏内事件的功能，如 Lunar 内置热键，需要窗口焦点）。
+HUD placeholders: `{state}` `{script}` `{step}` `{col}` `{total}` `{timeLeft}` `{attackMode}`.
+External hotkey `method`: `inject` (in-game event injection, works with MC keybind-based features such as SkyHanni) or `os` (OS-level simulation for targets outside the game's input pipeline, e.g. Lunar-internal hotkeys; requires window focus).
 
-## 行为细节
+## Behavior Notes
 
-- **界面冻结**：打开背包/聊天/任意界面时脚本暂停计时且不移动，关掉界面继续；
-- **自动停止**：断线、死亡、方案跑完（有限 loop）自动停；
-- **位置触发**：绝对坐标（轴 + 比较符 + 值），每 tick 判定；
-- **移动注入**：直接覆写 `Input.playerInput`/`movementVector`（mixin），等价长按按键，不依赖窗口焦点。
+- **Screen freeze**: opening any screen (inventory, chat, crafting, pause) pauses the script timer and movement; closing the screen resumes.
+- **Automatic stop**: disconnection, death, or completion of a finite-loop script stops execution automatically.
+- **Position triggers**: absolute coordinates (axis + operator + value), evaluated every tick.
+- **Movement injection**: directly overrides `Input.playerInput` / `movementVector` via mixin, equivalent to holding keys, without requiring window focus.
 
-## 构建
+## Building
 
 ```bash
-gradlew build          # 产物在 build/libs/
+gradlew build          # artifacts in build/libs/
 ```
 
-工具链：JDK 21+、Gradle 9.5+（Loom 1.17.19 要求）、Fabric API 0.141.6+1.21.11、Yarn 1.21.11+build.6。
+Toolchain: JDK 21+, Gradle 9.5+ (required by Loom 1.17.19), Fabric API 0.141.6+1.21.11, Yarn 1.21.11+build.6.
 
-## 推送到 GitHub（网络受限环境）
+## Pushing to GitHub (Network-Restricted Environment)
 
-本机网络环境过滤了 `github.com` 的 HTTPS（连接被重置），普通 `git push` 无法直连。
-已配置两种替代通道，**日常推送用脚本即可**：
+This machine's network filters HTTPS connections to `github.com` (connections are reset), so a standard `git push` cannot connect directly. Two alternative channels are configured; **use the script for routine pushes**:
 
 ```powershell
-# 方式一（推荐，走 GitHub git-data API，经 api.github.com 可达）
-git add -A && git commit -m "你的提交信息"
+# Option 1 (recommended): GitHub git-data API via api.github.com (reachable)
+git add -A && git commit -m "your message"
 pwsh -File .toolchain\push-via-api.ps1
 
-# 方式二（SSH over 443，~/.ssh/config 已配置 ssh.github.com:443）
-# 需要先把本机 SSH 公钥注册到 GitHub 账号：gh auth refresh -h github.com -s admin:public_key && gh ssh-key add ~/.ssh/id_ed25519.pub
+# Option 2: SSH over port 443 (~/.ssh/config routes github.com through ssh.github.com:443)
+# Requires registering the local SSH public key with the GitHub account:
+#   gh auth refresh -h github.com -s admin:public_key && gh ssh-key add ~/.ssh/id_ed25519.pub
 git push origin main
 ```
 
-> 注意：`.toolchain\` 已被 .gitignore 排除（存放 Gradle 发行版与推送脚本），不会进仓库。
-> 部署密钥已注册到仓库（只对 SkyScript 生效），待账号级 SSH 密钥就绪后可直接走方式二。
+> Note: `.toolchain\` is git-ignored (contains the local Gradle distribution and the push script) and is not part of the repository. A deploy key is registered for this repository; once an account-level SSH key is available, Option 2 can be used directly.
 
-## 风险提示
+## Compliance Notice
 
-- 自动化挂机行为是否合规取决于服务器规则（Hypixel 等明令禁止 macro）；
-- 本 mod 纯客户端，服务端无需安装，也不修改任何游戏文件。
+- Whether automation is permitted is determined by the server's rules (e.g. Hypixel explicitly prohibits macros).
+- This mod is client-side only: no server-side installation is required and no game files are modified.
 
-## 状态
+## Release History
 
-✅ **v0.1.1 已构建完成**（`build/libs/skyscript-0.1.0.jar`）。v0.1.1 修复实测反馈：
-- 新增 `/skyscript` 命令与完整**设置界面**（HUD/按键/联动全部可视化配置）
-- 新增 **Mod Menu 集成**（mod 列表点设置直接进）
-- 按键检测改**双通道**（GLFW 轮询 + KeyBinding），解决 1.21.11 输入重构后 F8/H 无响应
-- F8 启停/切换方向均有**聊天反馈**；HUD 整行按状态变色（运行绿/暂停黄/空闲灰）
-
-待实测：Lunar 1.21.11 加载、攻击模式切换、坐标触发实机调参。
+- **v0.1.1** — Settings screen (`/skyscript`), Mod Menu integration, dual-channel key detection, chat feedback, state-colored HUD.
+- **v0.1.0** — Initial release: script engine, input injection, F8 master control, HUD, in-game editor.

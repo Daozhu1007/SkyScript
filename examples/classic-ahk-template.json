@@ -1,5 +1,5 @@
 {
-  "name": "自动种田-经典模板",
+  "name": "classic-ahk-template",
   "loop": 0,
   "steps": [
     { "type": "hold", "keys": ["A"], "untilType": "time", "ms": 120000 },

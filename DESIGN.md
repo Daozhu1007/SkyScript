@@ -1,54 +1,53 @@
-# SkyScript — 设计文档
+# SkyScript — Design Specification
 
-> 一个可编程的 Skyblock 种田自动化 Fabric Mod（纯客户端）。
-> 从 `AutoKey.ahk`（AHK 脚本）进化而来：不再只是"按 120 秒换方向"，而是游戏内可编程的自动化框架。
+> A programmable SkyBlock farming automation Fabric mod (client-side only).
+> Evolved from `AutoKey.ahk` (an AutoHotkey script): no longer merely "switch direction every 120 seconds", but a full in-game programmable automation framework.
 
-- **项目名**：SkyScript
-- **项目根目录**：`D:\Code\SkyScript`
-- **mod id**：`sky_script`
-- **目标版本**：Minecraft 1.21.11（Fabric）
-- **环境**：纯客户端（`"environment": "client"`），服务端无需安装
-- **状态**：✅ **v0.1.0 已实现并构建成功**（`build/libs/skyscript-0.1.0.jar`）。实现过程发现 1.21.11 输入系统大重构（`Input.playerInput`/`movementVector`、`KeyInput`/`MouseInput`/`Click` 事件、`Keyboard.onKey` 私有化、`Entity.getEntityPos`、`KeyBinding.Category`、Loom 直写 mixin 无需 refmap），全部已适配。待实测：Lunar 加载、攻击模式切换、坐标触发实机调参。
+- **Project name**: SkyScript
+- **Project root**: `D:\Code\SkyScript`
+- **Mod id**: `sky_script`
+- **Target version**: Minecraft 1.21.11 (Fabric)
+- **Environment**: client-only (`"environment": "client"`); no server-side installation required
+- **Status**: ✅ **v0.1.1 implemented and built** (`build/libs/skyscript-0.1.1.jar`). Implementation uncovered the 1.21.11 input-system refactor (`Input.playerInput`/`movementVector`, `KeyInput`/`MouseInput`/`Click` events, privatization of `Keyboard.onKey`, `Entity.getEntityPos`, `KeyBinding.Category`, Loom's direct mixin rewriting without refmaps) — all adapted. Pending field testing: Lunar Client loading, attack-mode switching, coordinate-trigger tuning.
 
 ---
 
-## 1. 功能总览
+## 1. Feature Overview
 
-| 能力 | 说明 |
+| Capability | Description |
 |---|---|
-| 脚本引擎 | JSON 步骤式方案：hold / wait / press / command / loop |
-| 触发条件 | 时间计时、绝对坐标（轴+比较符+值）、手动 |
-| 循环语义 | 方案级 `loop`（默认 0 = 无限，可配有限）+ 嵌套 loop 步骤 |
-| 输入注入 | 移动键直接注入（mixin），任意键/鼠标走事件管线，外部目标走 OS 级模拟 |
-| F8 总控 | 一键联动：脚本启停 + 攻击/摧毁模式切换 + 外部热键触发 + HUD |
-| HUD | Lunar 风格、模板文本可自定义、静默模式 |
-| 游戏内编辑器 | 方案列表 → 步骤列表 → 步骤编辑 三个 Screen |
-| 配置 | `config/sky_script/settings.json` + `scripts/*.json` |
+| Script engine | JSON step-based scripts: hold / wait / press / command / loop |
+| Triggers | Time-based, absolute coordinates (axis + operator + value), manual |
+| Loop semantics | Script-level `loop` (default 0 = infinite, finite configurable) + nested `loop` steps |
+| Input injection | Movement keys injected directly (mixin); arbitrary keys/mouse via event pipeline; external targets via OS-level simulation |
+| F8 master control | One-key orchestration: script toggle + attack/destroy mode switch + external hotkey trigger + HUD |
+| HUD | Lunar style, customizable template text, silent mode |
+| In-game editor | Three screens: script list → step list → step edit |
+| Configuration | `config/sky_script/settings.json` + `scripts/*.json` |
 
 ---
 
-## 2. 架构模块
+## 2. Architecture
 
 ```
 SkyScript
-├─ core/      脚本模型(JSON) + 运行时状态机 + 步骤执行器
-├─ input/     移动注入(mixin) + 按键/鼠标事件注入 + OS级模拟(Robot/JNA)
-├─ hud/       HUD 渲染器(模板文本/占位符/静默模式)
-├─ screen/    游戏内编辑器 GUI(方案列表/步骤列表/步骤编辑)
-├─ config/    JSON 读写(config/sky_script/ 目录)
-├─ bind/      键位系统(所有键可绑)
-└─ mixins/    KeyboardInput#tick 等
+├─ engine/     Script model (JSON) + runtime state machine + step executor
+├─ input/      Movement injection (mixin) + key/mouse event injection + OS-level simulation (Robot)
+├─ hud/        HUD renderer (template text / placeholders / silent mode)
+├─ screen/     In-game editor GUI (script list / step list / step edit) + settings screen
+├─ config/     JSON I/O (config/sky_script/ directory)
+└─ mixins/     KeyboardInput#tick, Keyboard/Mouse/Input accessors
 ```
 
 ---
 
-## 3. 脚本 DSL 规格
+## 3. Script DSL Specification
 
-### 3.1 方案结构（示例）
+### 3.1 Script Structure (Example)
 
 ```json
 {
-  "name": "自动种田-南瓜田",
+  "name": "pumpkin-farm",
   "loop": 0,
   "steps": [
     {
@@ -77,131 +76,132 @@ SkyScript
 }
 ```
 
-> 注：实现时将 DESIGN 早期版本的嵌套 `until` 对象简化为平铺字段
-> `untilType`（time/position/manual）+ `ms` + `cond`，语义不变。
+> Note: the nested `until` object from the early design was flattened during implementation into `untilType` (time/position/manual) + `ms` + `cond`; semantics unchanged.
 
-### 3.2 步骤类型（v1）
+### 3.2 Step Types (v1)
 
-| 类型 | 字段 | 说明 |
+| Type | Fields | Description |
 |---|---|---|
-| `hold` | `keys` + `until` | 按住一组键直到条件满足。`until.type`：`time`(ms) / `position`(cond) / `manual` |
-| `wait` | `ms` | 纯等待 |
-| `press` | `keys` + `mode` | 点按/长按任意键，`mode`: `tap` / `hold` |
-| `command` | `value` | 执行指令，走 `sendChatCommand`，不进聊天框、不弹输入界面 |
-| `loop` | `times` + `body` | 嵌套循环，body 重复 N 次 |
+| `hold` | `keys` + `untilType` | Hold a set of keys until a condition is met. `untilType`: `time` (ms) / `position` (cond) / `manual` |
+| `wait` | `ms` | Pure wait |
+| `press` | `keys` + `mode` | Tap or hold arbitrary keys; `mode`: `tap` / `hold` |
+| `command` | `value` | Execute a command via `sendChatCommand`; bypasses the chat UI |
+| `loop` | `times` + `body` | Nested loop; repeats body N times |
 
-### 3.3 位置触发语义
+### 3.3 Position Trigger Semantics
 
-- 条件 = `轴 + 比较符 + 值` 列表（多条 = 同时满足），每 tick 判定。
-- **只用绝对坐标**（Hypixel 不隐藏 F3 坐标），不做相对偏移。
-- 方向感知由用户写对比较符：按 A 往 -X 走 → 写 `x <= 100.5`。
+- Condition = list of `axis + operator + value` (multiple entries = AND), evaluated every tick.
+- **Absolute coordinates only** (Hypixel does not hide F3 coordinates); no relative offsets.
+- Direction awareness is expressed by the operator: moving with A toward −X → write `x <= 100.5`.
 
-### 3.4 循环/结束语义
+### 3.4 Loop / Termination Semantics
 
-- 方案级 `loop`：`0` = 无限循环直到手动停（**默认**）；`N` = 整份跑 N 轮后自动停。
-- `loop` 步骤保留有限次循环能力（如 5 列）。
-
----
-
-## 4. 运行时状态机
-
-- 每 tick 驱动：步骤执行器推进 hold/pause 切换、条件判定、循环计数。
-- **停止条件**：F8 / 手动停 / 断线 / 死亡。
-- **打开界面**（背包/聊天/合成/暂停）= **冻结计时**：不移动、不消耗列时间，关掉界面继续走。
-- **按键语义（全局设置）**：
-  - `运行时按当前键`：`stop`（方案①：再按当前键=停止）/ `ignore`（方案②：无操作）
-  - `运行时按其他键`：切换到该键并重置列计数（原 AHK 行为）
+- Script-level `loop`: `0` = infinite until stopped manually (**default**); `N` = stop automatically after N full rounds.
+- `loop` steps retain finite repetition (e.g. 5 rows).
 
 ---
 
-## 5. 输入层（三层）
+## 4. Runtime State Machine
 
-| 层次 | 机制 | 用途 | 局限 |
+- Tick-driven: the step executor advances hold/pause transitions, evaluates conditions, and counts loop iterations.
+- **Stop conditions**: F8 / manual stop / disconnect / death.
+- **Screen open** (inventory/chat/crafting/pause) = **timer freeze**: no movement, no time consumption; resumes when the screen closes.
+- **Key semantics (global setting)**:
+  - `currentKeySemantics` while running: `stop` (pressing the current direction key stops) / `ignore` (no-op)
+  - pressing the other direction key: switch to that key and reset column timing (original AHK behavior)
+
+---
+
+## 5. Input Layers (Three-Tier)
+
+| Layer | Mechanism | Use | Limitation |
 |---|---|---|---|
-| 移动注入 | mixin 覆写 `KeyboardInput#tick` 的 movement 字段 | A/S/D/W/空格等移动键 | 只对移动有效 |
-| 游戏内事件注入 | 调 `client.keyboard.onKey(...)` / `client.mouse.onMouseButton(...)` | 任意键/鼠标：背包、热键栏、走 MC 键位系统的 mod 功能 | 走不到 GLFW 层注册的第三方监听 |
-| OS 级模拟 | Java Robot / JNA SendInput | 任何收不到游戏内事件的目标 | 需要窗口焦点 |
+| Movement injection | Mixin overrides movement fields after `KeyboardInput#tick` | Movement keys (A/S/D/W/SPACE) | Movement only |
+| In-game event injection | Invokes `Keyboard.onKey(...)` / `Mouse.onMouseButton(...)` via mixin accessors | Arbitrary keys/mouse: inventory, hotbar, MC-keybind-based mod features | Cannot reach third-party listeners registered at the GLFW layer |
+| OS-level simulation | Java Robot | Any target outside the game's input pipeline | Requires window focus |
 
 ---
 
-## 6. F8 总控联动
+## 6. F8 Master Control
 
-按下 F8 执行**联动动作序列**（每项可开关）：
+Pressing F8 executes the **action sequence** (each step toggleable in settings):
 
-1. 脚本启/停
-2. 攻击/摧毁模式切换（`GameOptions` 里的 AttackMode 选项，字段名实现时确认，必要时 mixin accessor；切换模式下需注入一次左键"锁定"，停止时再注入一次解锁并恢复 HOLD）
-3. **外部热键触发：默认 PgDn**（用户 Lunar 内置"锁定鼠标"热键），触发方式每键可配：`inject`（游戏内注入）/ `os`（OS 级模拟）
-4. HUD 开关
+1. Script start/stop
+2. Attack/destroy mode switch (the `AttackMode` option in `GameOptions`; field name verified at implementation time, mixin accessor as fallback; in toggle mode one left-click latches continuous attack — on stop, one click unlatches and mode reverts to HOLD)
+3. **External hotkey trigger: default PgDn** (the user's mouse-lock hotkey, e.g. Lunar built-in), per-key configurable method: `inject` (in-game injection) / `os` (OS-level simulation)
+4. HUD toggle
 
-> 环境提示：切纯 Fabric 保底环境时，建议把 SkyHanni 的锁定鼠标热键也绑成 PgDn，两个环境手感一致，配置零改动。
+> Environment note: when switching to the plain-Fabric fallback environment, bind SkyHanni's mouse-lock hotkey to the same key (PgDn) so both environments behave identically with zero config changes.
 
 ---
 
 ## 7. HUD
 
-- Lunar 风格：屏幕角落小字，预设四角 + 偏移，背景/透明度/字号可调。
-- **模板文本可自定义**，占位符：`{state} {script} {step} {col}/{total} {timeLeft} {attackMode}`，默认中文文案。
-- **静默模式**：完全不渲染、不弹任何提示。
-- 不用 Action Bar（避免影响 UI）。
+- Lunar style: corner text, four corner presets + offset, adjustable background/opacity/font scale.
+- **Customizable template text**, placeholders: `{state} {script} {step} {col}/{total} {timeLeft} {attackMode}`; default template in Chinese.
+- **Silent mode**: no rendering, no notifications of any kind.
+- No action-bar messages (to avoid interfering with the UI).
 
 ---
 
-## 8. 配置存储
+## 8. Configuration Storage
 
 ```
 config/sky_script/
-├─ settings.json      # 全局：按键语义、HUD 模板、F8 联动动作、外部热键配置
-└─ scripts/*.json     # 每方案一份
+├─ settings.json      # Global: key semantics, HUD template, F8 action toggles, external hotkey config
+└─ scripts/*.json     # One file per script
 ```
 
 ---
 
-## 9. 游戏内编辑器
+## 9. In-Game Editor
 
-三个 Screen（工程量的最大头，预计 800~1500 行，无技术风险）：
+Three screens (the largest work item; estimated 800–1500 lines; no technical risk):
 
-1. **方案列表**：查看/新建/删除/启用方案
-2. **步骤列表**：查看/增删/排序方案内步骤
-3. **步骤编辑**：类型下拉、坐标/时间输入框、按键录制器
+1. **Script list**: view / create / delete / set active
+2. **Step list**: view / add / remove / reorder steps
+3. **Step edit**: type selector, coordinate/time input fields, key recorder
 
----
-
-## 10. 环境与版本策略
-
-- **标准纯客户端 Fabric mod**，兼容任何 Fabric 环境。
-- **M0 前置实测**：Lunar Client 1.21.11 能否加载我们的 jar。
-  - 路 A：能 → 环境不变，继续用 Lunar。
-  - 路 B（保底）：纯 Fabric = Fabric Loader + Fabric API + Modrinth 版 SkyHanni + SkyScript。
-- **版本策略**：1.21.11 单版本起步 + 版本隔离纪律（版本相关代码集中在 `input/` 与 `mixins/` 少量文件，记录移植清单）；26.1/26.2（年份版本号体系）发布后，若需双版本并行再引入 Stonecutter。
+Plus the **settings screen** (opened via `/skyscript` or Mod Menu): HUD options, key semantics, trigger keys, master/editor key names, F8 action toggles, external hotkey, feedback toggle, restore defaults.
 
 ---
 
-## 11. 里程碑
+## 10. Environment & Version Strategy
 
-| 阶段 | 内容 | 预估 |
+- **Standard client-side Fabric mod**, compatible with any Fabric environment.
+- **M0 field verification** (deferred): whether Lunar Client 1.21.11 loads the mod jar.
+  - Path A: loads → keep the Lunar environment.
+  - Path B (fallback): plain Fabric = Fabric Loader + Fabric API + SkyHanni (Modrinth build) + SkyScript.
+- **Version strategy**: single-version on 1.21.11 with version-isolation discipline (version-specific code concentrated in a few files under `input/` and `mixins/`, with a porting checklist); when 26.1/26.2 (year-based versioning) are released, introduce Stonecutter if dual-version maintenance is required.
+
+---
+
+## 11. Milestones
+
+| Phase | Scope | Estimate |
 |---|---|---|
-| M0 | ~~前置验证~~ 已延后：与 M1 产物合并实测（Lunar 加载 + AttackMode 字段确认顺带完成） | 0 |
-| M1 | 骨架 + 键位框架 + 移动注入 mixin + HUD + 时间型步骤 | 2-3 天 |
-| M2 | 引擎完整：position/command/press/loop + 全停止条件 + 按键语义设置 | 2-3 天 |
-| M3 | 编辑器 GUI（三个 Screen） | 3-5 天 |
-| M4 | F8 联动：AttackMode 读写 + 左键注入 + 外部热键 + Lunar 实测调优 | 2-3 天 |
-| M5 | 版本隔离整理 + 移植清单文档 | 1-2 天 |
+| M0 | ~~Pre-verification~~ deferred: merged into M1 field test (Lunar loading + AttackMode field confirmation) | 0 |
+| M1 | Skeleton + keybind framework + movement-injection mixin + HUD + time-based steps | 2–3 days |
+| M2 | Full engine: position/command/press/loop + all stop conditions + key semantics settings | 2–3 days |
+| M3 | Editor GUI (three screens) | 3–5 days |
+| M4 | F8 orchestration: AttackMode read/write + left-click injection + external hotkeys + Lunar field tuning | 2–3 days |
+| M5 | Version isolation + porting checklist | 1–2 days |
 
-总计约 2~3 周，代码量预估 2500~4000 行。
-
----
-
-## 12. 风险清单
-
-1. **Lunar 1.21.11 Fabric 加载兼容性**（最高优先，M0 实测；保底方案已备）
-2. **Lunar 内置功能能否被游戏内注入触发**（备选 OS 级模拟）
-3. **服务器反宏规则**：纯客户端 mod 不增加检测面，但自动化行为本身取决于服务器规则
-4. **AttackMode 字段名随版本变化**（mixin accessor 兜底）
+Total ≈ 2–3 weeks; estimated 2500–4000 lines of code.
 
 ---
 
-## 13. 命名与发布
+## 12. Risk Register
 
-- 显示名：SkyScript
-- mod id：`sky_script`
-- 发布 Modrinth 前需查重名
+1. **Lunar 1.21.11 Fabric loading compatibility** (highest priority; M0 field test; fallback ready)
+2. **Whether Lunar-internal features respond to in-game event injection** (OS-level simulation as fallback)
+3. **Server anti-macro rules**: a client-side mod adds no detection surface, but automation behavior itself is subject to server rules
+4. **AttackMode field name changes across versions** (mixin accessor as fallback)
+
+---
+
+## 13. Naming & Publishing
+
+- Display name: SkyScript
+- Mod id: `sky_script`
+- Check for name conflicts on Modrinth before publishing.
