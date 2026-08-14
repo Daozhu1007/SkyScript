@@ -54,24 +54,55 @@ public class Step {
         return s;
     }
 
-    /** 生成一行摘要（编辑器列表用） */
+    /** 生成一行人话摘要（编辑器列表用），如「长按 A 直到 x≤100.5」 */
     public String summary() {
         return switch (type) {
-            case "wait" -> "wait " + Math.max(0, ms) + "ms";
-            case "hold" -> "hold " + keys + " → " + untilDesc();
-            case "press" -> "press " + keys + " (" + mode + ")" + ("hold".equals(mode) ? " → " + untilDesc() : "");
-            case "command" -> "cmd " + value;
-            case "loop" -> "loop ×" + times + " (" + body.size() + " 子步骤)";
+            case "wait" -> "等待 " + sec(Math.max(0, ms));
+            case "hold" -> "长按 " + keysDesc() + "，直到" + untilDesc();
+            case "press" -> "hold".equals(mode)
+                    ? "按住 " + keysDesc() + "，直到" + untilDesc()
+                    : "点按 " + keysDesc();
+            case "command" -> "执行 " + (value == null || value.isEmpty() ? "/…" : value);
+            case "loop" -> "循环 " + Math.max(1, times) + " 次（" + body.size() + " 步）";
             default -> type;
         };
     }
 
+    private String keysDesc() {
+        if (keys == null || keys.isEmpty()) return "（未设按键）";
+        return String.join(" + ", keys);
+    }
+
     private String untilDesc() {
         return switch (untilType == null ? "time" : untilType) {
-            case "time" -> Math.max(0, ms) + "ms";
-            case "position" -> cond.toString();
-            case "manual" -> "手动";
-            default -> "time";
+            case "position" -> cond == null || cond.isEmpty() ? " 坐标" : condText(cond.get(0));
+            case "manual" -> "手动结束";
+            default -> " " + sec(Math.max(0, ms));
         };
+    }
+
+    /** 坐标条件的人话：x≤100.5、y≥-64 等 */
+    private static String condText(PosCond pc) {
+        String op = switch (pc.op) {
+            case "<=" -> "≤";
+            case ">=" -> "≥";
+            case "==" -> "=";
+            case "<" -> "<";
+            default -> ">";
+        };
+        return " " + pc.axis + op + trimZero(pc.value);
+    }
+
+    private static String trimZero(double d) {
+        if (d == (long) d) return String.valueOf((long) d);
+        return String.valueOf(d);
+    }
+
+    /** 毫秒 → 秒的人话（去掉多余的 .0） */
+    private static String sec(int ms) {
+        if (ms <= 0) return "0 秒";
+        double s = ms / 1000.0;
+        String t = trimZero(s);
+        return t + " 秒";
     }
 }

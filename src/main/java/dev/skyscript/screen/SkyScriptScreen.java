@@ -43,11 +43,11 @@ public class SkyScriptScreen extends Screen {
     private static final String[][] POS = {{"左上", "top-left"}, {"右上", "top-right"}, {"左下", "bottom-left"}, {"右下", "bottom-right"}};
     private static final String[][] SEM = {{"停止", "stop"}, {"忽略", "ignore"}};
     private static final String[][] METH = {{"游戏内注入", "inject"}, {"系统级模拟", "os"}};
-    private static final String[] TYPES = {"hold", "wait", "press", "command", "loop"};
-    private static final String[] UNTILS = {"time", "position", "manual"};
+    private static final String[][] OPS_MAP = {{"≤", "<="}, {"≥", ">="}, {"<", "<"}, {">", ">"}, {"=", "=="}};
+    private static final String[][] UNTIL_MAP = {{"到时间", "time"}, {"到坐标", "position"}, {"手动", "manual"}};
+    private static final String[] STEP_TYPE_ORDER = {"按住按键（长按）", "点按按键", "等待", "发送指令", "循环"};
     private static final String[] AXES = {"x", "y", "z"};
     private static final String[] OPS = {"<=", ">=", "<", ">", "=="};
-    private static final String[] PRESS_MODES = {"tap", "hold"};
 
     private Tab tab;
     private int scroll;
@@ -73,6 +73,18 @@ public class SkyScriptScreen extends Screen {
     private boolean capturing;
     // 步骤编辑表单临时文本
     private String msText = "", timesText = "1", cmdText = "", posValueText = "0";
+
+    // ---- 新建方案向导 ----
+    private boolean inWizard;
+    private String wizName = "";
+    private String wizStartKey = "A";
+    private String wizAxis = "x";
+    private String wizOpA = "<=", wizValA = "100";
+    private String wizOpD = ">=", wizValD = "200";
+    private String wizCols = "5";
+    private String wizPause = "0.5";
+    private String wizCmd = "/home";
+    private String wizRounds = "0";
 
     public SkyScriptScreen() {
         this(Tab.MAIN);
@@ -186,7 +198,7 @@ public class SkyScriptScreen extends Screen {
 
     private void toggleRow(String label, boolean value, Consumer<Boolean> on) {
         int y = yOf(nextRow++);
-        renderItems.add(new Object[]{y, "§7" + label, 0});
+        renderItems.add(new Object[]{y, label, 0});
         if (!visible(y)) return;
         addDrawableChild(ButtonWidget.builder(Text.literal(value ? "§a开" : "§c关"), b -> on.accept(!value))
                 .dimensions(ctrlX(), y, 60, 20).build());
@@ -194,7 +206,7 @@ public class SkyScriptScreen extends Screen {
 
     private void cycleRow(String label, String value, String[][] map, Consumer<String> on) {
         int y = yOf(nextRow++);
-        renderItems.add(new Object[]{y, "§7" + label, 0});
+        renderItems.add(new Object[]{y, label, 0});
         if (!visible(y)) return;
         int idx = 0;
         for (int i = 0; i < map.length; i++) {
@@ -207,7 +219,7 @@ public class SkyScriptScreen extends Screen {
 
     private void textRow(String label, String initial, Consumer<String> on, String hint) {
         int y = yOf(nextRow++);
-        renderItems.add(new Object[]{y, "§7" + label, 0});
+        renderItems.add(new Object[]{y, label, 0});
         if (visible(y)) {
             TextFieldWidget tf = new TextFieldWidget(this.textRenderer, ctrlX(), y, ctrlW(), 20, Text.literal(""));
             tf.setMaxLength(200);
@@ -217,7 +229,7 @@ public class SkyScriptScreen extends Screen {
         }
         if (hint != null) {
             int hy = yOf(nextRow++);
-            renderItems.add(new Object[]{hy, "§8" + hint, 2});
+            renderItems.add(new Object[]{hy, hint, 2});
         }
     }
 
@@ -285,22 +297,25 @@ public class SkyScriptScreen extends Screen {
     }
 
     private void buildMainTab() {
+        addSection("一键收割（F8）");
+        addLabel("按 F8 = 全自动开始：脚本 + 连点攻击 + 锁鼠标；再按 = 全部停止还原。", 0xFFFFFF);
+        addLabel("脚本不会立即跑，按触发键（默认 A/D）才启动。", 0xFFFFFF);
         addSection("运行");
         toggleRow("进游戏自动开启", mArmedOnJoin, v -> { mArmedOnJoin = v; refresh(); });
         textRow("触发键（点击启动）", triggerKeys, v -> triggerKeys = v, "逗号分隔，如 A, D");
-        cycleRow("运行中按当前方向键", curKeySem, SEM, v -> { curKeySem = v; refresh(); });
-        addSection("F8 总控");
-        toggleRow("F8 控制脚本开关", mToggleScript, v -> { mToggleScript = v; refresh(); });
-        toggleRow("F8 切换攻击/摧毁模式", mToggleAttack, v -> { mToggleAttack = v; refresh(); });
-        toggleRow("F8 联动 HUD 显示", mToggleHud, v -> { mToggleHud = v; refresh(); });
-        textRow("外部热键（联动触发）", extKey, v -> extKey = v, "如 PGDN，可留空");
-        cycleRow("外部热键方式", extMethod, METH, v -> { extMethod = v; refresh(); });
-        toggleRow("聊天反馈消息", mFeedback, v -> { mFeedback = v; refresh(); });
+        cycleRow("运行中再按当前方向键", curKeySem, SEM, v -> { curKeySem = v; refresh(); });
+        addSection("F8 一起做的事");
+        toggleRow("启动 / 停止脚本", mToggleScript, v -> { mToggleScript = v; refresh(); });
+        toggleRow("连点攻击模式（官方切换）", mToggleAttack, v -> { mToggleAttack = v; refresh(); });
+        toggleRow("显示 / 隐藏 HUD", mToggleHud, v -> { mToggleHud = v; refresh(); });
+        textRow("锁鼠标热键（Lunar 等）", extKey, v -> extKey = v, "F8 按下时触发一次，可留空");
+        cycleRow("触发方式", extMethod, METH, v -> { extMethod = v; refresh(); });
+        toggleRow("聊天反馈", mFeedback, v -> { mFeedback = v; refresh(); });
         addSection("按键");
-        textRow("控制台键", settingsKeyName, v -> settingsKeyName = v, "打开本面板的按键");
-        textRow("总控键", masterKeyName, v -> masterKeyName = v, "F8：开启/关闭自动化");
+        textRow("控制台键", settingsKeyName, v -> settingsKeyName = v, "打开本面板");
+        textRow("总控键", masterKeyName, v -> masterKeyName = v, "默认 F8");
         addSection("高级");
-        toggleRow("方向交换（诊断兜底）", directionSwap, v -> { directionSwap = v; refresh(); });
+        toggleRow("方向交换（诊断）", directionSwap, v -> { directionSwap = v; refresh(); });
     }
 
     private void buildHudTab() {
@@ -316,7 +331,9 @@ public class SkyScriptScreen extends Screen {
     }
 
     private void buildScriptsTab() {
-        if (editingScript == null) {
+        if (inWizard) {
+            buildWizard();
+        } else if (editingScript == null) {
             buildScriptList();
         } else if (editingStep == null) {
             buildStepList();
@@ -330,14 +347,13 @@ public class SkyScriptScreen extends Screen {
     private void buildScriptList() {
         refreshScripts();
         addSection("脚本方案");
-        addLabel("§7活动: " + (activeScriptName()), 0xFFFFFF);
+        addLabel("活动: " + activeScriptName(), 0xFFFFFF);
 
-        // 新建方案
-        addDrawableChild(ButtonWidget.builder(Text.literal("新建方案"), b -> {
-            String name = uniqueName("新方案");
-            Script s = new Script(name);
-            s.steps = Script.createDefault(name).steps;
-            SkyScriptConfig.saveScript(s);
+        // 新建方案 → 打开向导
+        addDrawableChild(ButtonWidget.builder(Text.literal("新建方案…"), b -> {
+            inWizard = true;
+            wizName = "";
+            scroll = 0;
             refresh();
         }).dimensions(CONTENT_X, this.height - 34, 90, 20).build());
 
@@ -347,7 +363,7 @@ public class SkyScriptScreen extends Screen {
             int y = yOf(nextRow++);
             boolean isActive = s.name.equals(activeScriptName());
             renderItems.add(new Object[]{y,
-                    (isActive ? "§a▶ " : "  ") + "§f" + s.name + "  §7" + s.steps.size() + "步" + (s.loop == 0 ? " §a∞" : " §7×" + s.loop), 0});
+                    (isActive ? "§a▶ " : "  ") + s.name + "  " + s.steps.size() + " 步" + (s.loop == 0 ? "（无限）" : "（×" + s.loop + "）"), 0});
             if (!visible(y)) continue;
             addDrawableChild(zoneBtn(zoneStart, y, 0, isActive ? "§a活动" : "活动",
                     b -> { SkyScriptConfig.get().activeScript = s.name; SkyScriptConfig.save(); refresh(); }));
@@ -366,7 +382,7 @@ public class SkyScriptScreen extends Screen {
                     }));
         }
         if (scripts.isEmpty()) {
-            addLabel("§7还没有方案，点右上「新建方案」开始", 0xFFFFFF);
+            addLabel("还没有方案，点右上「新建方案…」用向导生成", 0xFFFFFF);
         }
     }
 
@@ -391,6 +407,72 @@ public class SkyScriptScreen extends Screen {
             if (!taken) return name;
             name = base + " " + n++;
         }
+    }
+
+    // ---------- 新建方案向导 ----------
+
+    private void buildWizard() {
+        addSection("新建方案（向导）");
+        addLabel("填下面几项，自动生成「走到坐标就换方向」的脚本。", 0xFFFFFF);
+        textRow("方案名", wizName, v -> wizName = v, "留空自动取名");
+        cycleRow("第一列方向（起始键）", wizStartKey, new String[][]{{"A（向左）", "A"}, {"D（向右）", "D"}}, v -> { wizStartKey = v; refresh(); });
+        cycleRow("坐标轴", wizAxis, new String[][]{{"X（东西）", "x"}, {"Y（高度）", "y"}, {"Z（南北）", "z"}}, v -> { wizAxis = v; refresh(); });
+        addSection("两列各自走到哪");
+        addLabel("A 列（起始键那一列）", 0xFFFFFF);
+        cycleRow("A 列比较", wizOpA, OPS_MAP, v -> { wizOpA = v; refresh(); });
+        textRow("A 列坐标值", wizValA, v -> wizValA = v, null);
+        addLabel("D 列（另一键那一列）", 0xFFFFFF);
+        cycleRow("D 列比较", wizOpD, OPS_MAP, v -> { wizOpD = v; refresh(); });
+        textRow("D 列坐标值", wizValD, v -> wizValD = v, null);
+        addSection("一趟怎么走");
+        textRow("每趟列数（交替几次）", wizCols, v -> wizCols = v, "如 5 = A,D,A,D,A 共 5 段");
+        textRow("列间暂停（秒）", wizPause, v -> wizPause = v, "如 0.5");
+        textRow("每趟结束指令", wizCmd, v -> wizCmd = v, "如 /home，可留空");
+        textRow("整趟循环次数（0=无限）", wizRounds, v -> wizRounds = v, "每跑完一趟（含指令）算一轮");
+        addDrawableChild(ButtonWidget.builder(Text.literal("生成方案"), b -> generateFromWizard())
+                .dimensions(CONTENT_X, this.height - 34, 90, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("取消"), b -> { inWizard = false; refresh(); })
+                .dimensions(CONTENT_X + 96, this.height - 34, 70, 20).build());
+    }
+
+    /** 按向导字段生成脚本并落盘，设为活动方案 */
+    private void generateFromWizard() {
+        refreshScripts();
+        String nm = wizName == null ? "" : wizName.trim();
+        if (nm.isEmpty()) nm = uniqueName("新方案");
+        Script s = new Script(nm);
+        s.loop = Math.max(0, parseInt(wizRounds, 0));
+        int cols = Math.max(1, parseInt(wizCols, 1));
+        int pauseMs = (int) Math.round(Math.max(0, parseDouble(wizPause, 0.5)) * 1000);
+        String axis = wizAxis == null || wizAxis.isEmpty() ? "x" : wizAxis;
+        PosCond ca = new PosCond(axis, wizOpA == null ? "<=" : wizOpA, parseDouble(wizValA, 100));
+        PosCond cd = new PosCond(axis, wizOpD == null ? ">=" : wizOpD, parseDouble(wizValD, 200));
+        String key = "D".equals(wizStartKey) ? "D" : "A";
+        String other = "A".equals(key) ? "D" : "A";
+        for (int i = 0; i < cols; i++) {
+            boolean firstSeg = i % 2 == 0;
+            Step h = new Step();
+            h.type = "hold";
+            h.keys.add(firstSeg ? key : other);
+            h.untilType = "position";
+            h.cond.add(firstSeg ? ca.copy() : cd.copy());
+            s.steps.add(h);
+            Step w = new Step();
+            w.type = "wait";
+            w.ms = pauseMs;
+            s.steps.add(w);
+        }
+        if (wizCmd != null && !wizCmd.trim().isEmpty()) {
+            Step c = new Step();
+            c.type = "command";
+            c.value = wizCmd.trim();
+            s.steps.add(c);
+        }
+        SkyScriptConfig.saveScript(s);
+        SkyScriptConfig.get().activeScript = s.name;
+        SkyScriptConfig.save();
+        inWizard = false;
+        refresh();
     }
 
     // ---------- 步骤列表 ----------
@@ -424,7 +506,7 @@ public class SkyScriptScreen extends Screen {
             final int idx = i;
             Step st = steps.get(i);
             int y = yOf(nextRow++);
-            renderItems.add(new Object[]{y, "§7" + (i + 1) + ". §f" + st.summary(), 0});
+            renderItems.add(new Object[]{y, (i + 1) + ". " + st.summary(), 0});
             if (!visible(y)) continue;
             int col = 0;
             if (i > 0) addDrawableChild(zoneBtn(zoneStart, y, col++, "↑", b -> moveStep(steps, idx, idx - 1)));
@@ -445,7 +527,7 @@ public class SkyScriptScreen extends Screen {
                     }));
         }
         if (steps.isEmpty()) {
-            addLabel("§7还没有步骤，点右下「添加步骤」", 0xFFFFFF);
+            addLabel("还没有步骤，点「添加步骤」开始", 0xFFFFFF);
         }
     }
 
@@ -475,7 +557,7 @@ public class SkyScriptScreen extends Screen {
 
     private void openStepEdit(Step st, boolean addedNew) {
         editingStep = st;
-        msText = st.ms > 0 ? String.valueOf(st.ms) : "";
+        msText = formatSeconds(st.ms);
         timesText = st.times > 0 ? String.valueOf(st.times) : "1";
         cmdText = st.value == null ? "" : st.value;
         if (st.cond.isEmpty()) st.cond.add(new PosCond());
@@ -492,43 +574,43 @@ public class SkyScriptScreen extends Screen {
         Step st = editingStep;
         addSection("编辑步骤");
 
-        cycleButton("类型", st.type, TYPES, v -> { st.type = v; if (!"loop".equals(v) && st.body.isEmpty()) st.body = new ArrayList<>(); refresh(); });
+        addStepTypeButton(st);
 
         switch (st.type) {
             case "hold", "press" -> {
                 addSection("按键");
-                addLabel("§7当前按键: " + (st.keys.isEmpty() ? "（空）" : st.keys.toString()), 0xFFFFFF);
+                addLabel("当前按键: " + (st.keys.isEmpty() ? "（空，点录制）" : st.keys.toString()), 0xFFFFFF);
                 addDrawableChild(ButtonWidget.builder(Text.literal(capturing ? "…按任意键录入 (ESC 取消)" : "录制按键"), b -> capturing = true)
                         .dimensions(LABEL_X, yOf(nextRow++), 140, 20).build());
                 addDrawableChild(ButtonWidget.builder(Text.literal("清除按键"), b -> { st.keys.clear(); refresh(); })
                         .dimensions(LABEL_X + 146, yOf(nextRow - 1), 90, 20).build());
-                if ("press".equals(st.type)) {
-                    cycleButton("模式", st.mode, PRESS_MODES, v -> { st.mode = v; refresh(); });
-                }
-                cycleButton("结束条件", st.untilType, UNTILS, v -> { st.untilType = v; refresh(); });
-                if ("time".equals(st.untilType)) {
-                    textRow("毫秒", msText, v -> msText = v, "按住/等待时长");
-                } else if ("position".equals(st.untilType)) {
-                    PosCond pc = st.cond.isEmpty() ? new PosCond() : st.cond.get(0);
-                    int py = yOf(nextRow++);
-                    if (visible(py)) {
-                        addDrawableChild(ButtonWidget.builder(Text.literal("轴: " + pc.axis), b -> {
-                            pc.axis = next(AXES, pc.axis); refresh();
-                        }).dimensions(LABEL_X, py, 66, 20).build());
-                        addDrawableChild(ButtonWidget.builder(Text.literal(pc.op), b -> {
-                            pc.op = next(OPS, pc.op); refresh();
-                        }).dimensions(LABEL_X + 72, py, 52, 20).build());
-                        TextFieldWidget val = new TextFieldWidget(this.textRenderer, LABEL_X + 130, py, 70, 20, Text.literal("坐标值"));
-                        val.setMaxLength(16);
-                        val.setText(posValueText);
-                        val.setChangedListener(v -> posValueText = v);
-                        addDrawableChild(val);
+                // 只有"长按"才需要结束条件；点按是一次性按下
+                if ("hold".equals(st.type) || "hold".equals(st.mode)) {
+                    addUntilButton(st);
+                    if ("time".equals(st.untilType)) {
+                        textRow("时长（秒）", msText, v -> msText = v, "按住多久，如 120 / 0.5");
+                    } else if ("position".equals(st.untilType)) {
+                        PosCond pc = st.cond.isEmpty() ? new PosCond() : st.cond.get(0);
+                        int py = yOf(nextRow++);
+                        if (visible(py)) {
+                            addDrawableChild(ButtonWidget.builder(Text.literal("坐标轴: " + pc.axis), b -> {
+                                pc.axis = next(AXES, pc.axis); refresh();
+                            }).dimensions(LABEL_X, py, 120, 20).build());
+                            addDrawableChild(ButtonWidget.builder(Text.literal(opDisplay(pc.op)), b -> {
+                                pc.op = next(OPS, pc.op); refresh();
+                            }).dimensions(LABEL_X + 126, py, 52, 20).build());
+                            TextFieldWidget val = new TextFieldWidget(this.textRenderer, LABEL_X + 184, py, 80, 20, Text.literal("坐标值"));
+                            val.setMaxLength(16);
+                            val.setText(posValueText);
+                            val.setChangedListener(v -> posValueText = v);
+                            addDrawableChild(val);
+                        }
                     }
                 }
             }
             case "wait" -> {
                 addSection("时长");
-                textRow("毫秒", msText, v -> msText = v, null);
+                textRow("时长（秒）", msText, v -> msText = v, "等待多久");
             }
             case "command" -> {
                 addSection("指令");
@@ -536,8 +618,8 @@ public class SkyScriptScreen extends Screen {
             }
             case "loop" -> {
                 addSection("循环");
-                textRow("次数", timesText, v -> timesText = v, null);
-                addDrawableChild(ButtonWidget.builder(Text.literal("编辑循环体 (" + st.body.size() + " 子步骤)"), b -> {
+                textRow("重复次数", timesText, v -> timesText = v, null);
+                addDrawableChild(ButtonWidget.builder(Text.literal("编辑循环体（" + st.body.size() + " 步）"), b -> {
                     stepsStack.push(st.body);
                     editingStep = null;
                     refresh();
@@ -558,19 +640,79 @@ public class SkyScriptScreen extends Screen {
         }).dimensions(CONTENT_X + 96, this.height - 34, 90, 20).build());
     }
 
-    /** 循环选择按钮（点击切到下一个选项，不额外加标签行） */
-    private void cycleButton(String label, String value, String[] options, Consumer<String> on) {
-        if (options == null) return;
+    /** 动作类型选择按钮（大白话 → 底层 type/mode） */
+    private void addStepTypeButton(Step st) {
         int y = yOf(nextRow++);
         if (!visible(y)) return;
-        addDrawableChild(ButtonWidget.builder(Text.literal(label + ": " + value), b -> {
-            on.accept(next(options, value));
-        }).dimensions(LABEL_X, y, 200, 20).build());
+        String current = stepTypeLabel(st);
+        addDrawableChild(ButtonWidget.builder(Text.literal("动作: " + current), b -> {
+            applyStepType(st, next(STEP_TYPE_ORDER, current));
+            refresh();
+        }).dimensions(LABEL_X, y, 240, 20).build());
+    }
+
+    private static String stepTypeLabel(Step st) {
+        return switch (st.type) {
+            case "hold" -> "按住按键（长按）";
+            case "press" -> "tap".equals(st.mode) ? "点按按键" : "按住按键（长按）";
+            case "wait" -> "等待";
+            case "command" -> "发送指令";
+            case "loop" -> "循环";
+            default -> st.type;
+        };
+    }
+
+    private static void applyStepType(Step st, String label) {
+        switch (label) {
+            case "点按按键" -> { st.type = "press"; st.mode = "tap"; }
+            case "等待" -> st.type = "wait";
+            case "发送指令" -> st.type = "command";
+            case "循环" -> st.type = "loop";
+            default -> st.type = "hold"; // 按住按键（长按）
+        }
+    }
+
+    /** 结束条件选择按钮（到时间 / 到坐标 / 手动） */
+    private void addUntilButton(Step st) {
+        int y = yOf(nextRow++);
+        if (!visible(y)) return;
+        String current = untilLabel(st.untilType);
+        addDrawableChild(ButtonWidget.builder(Text.literal("结束: " + current), b -> {
+            String nextDisplay = next(displayOf(UNTIL_MAP), current);
+            st.untilType = storeOf(UNTIL_MAP, nextDisplay);
+            refresh();
+        }).dimensions(LABEL_X, y, 240, 20).build());
+    }
+
+    private static String untilLabel(String ut) {
+        return switch (ut == null ? "time" : ut) {
+            case "position" -> "到坐标";
+            case "manual" -> "手动";
+            default -> "到时间";
+        };
+    }
+
+    private static String opDisplay(String op) {
+        for (String[] p : OPS_MAP) if (p[1].equals(op)) return p[0];
+        return op;
+    }
+
+    private static String[] displayOf(String[][] map) {
+        String[] out = new String[map.length];
+        for (int i = 0; i < map.length; i++) out[i] = map[i][0];
+        return out;
+    }
+
+    private static String storeOf(String[][] map, String display) {
+        for (String[] p : map) if (p[0].equals(display)) return p[1];
+        return map[0][1];
     }
 
     private void applyStepFields(Step st) {
         try {
-            if (msText != null && !msText.isEmpty()) st.ms = Math.max(0, Integer.parseInt(msText.trim()));
+            if (msText != null && !msText.isEmpty()) {
+                st.ms = (int) Math.round(Math.max(0, Double.parseDouble(msText.trim())) * 1000);
+            }
         } catch (NumberFormatException ignored) {
         }
         try {
@@ -606,9 +748,9 @@ public class SkyScriptScreen extends Screen {
             if (flag == 1) {
                 ctx.drawText(this.textRenderer, Text.literal(text), LABEL_X, y, 0xFFD67E, true);
             } else if (flag == 2) {
-                ctx.drawText(this.textRenderer, Text.literal(text), LABEL_X, y, 0xAAAAAA, false);
+                ctx.drawText(this.textRenderer, Text.literal(text), LABEL_X, y, 0xAAAAAA, true);
             } else {
-                ctx.drawText(this.textRenderer, Text.literal(text), LABEL_X, y, 0xFFFFFF, false);
+                ctx.drawText(this.textRenderer, Text.literal(text), LABEL_X, y, 0xFFFFFF, true);
             }
         }
     }
@@ -652,6 +794,22 @@ public class SkyScriptScreen extends Screen {
         } catch (Exception e) {
             return fallback;
         }
+    }
+
+    private static double parseDouble(String s, double fallback) {
+        try {
+            return Double.parseDouble(s.trim());
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    /** 毫秒 → 秒字符串（去掉多余的 .0），如 120000→"120"、500→"0.5" */
+    private static String formatSeconds(int ms) {
+        if (ms <= 0) return "";
+        double s = ms / 1000.0;
+        if (s == (long) s) return String.valueOf((long) s);
+        return String.valueOf(s);
     }
 
     private static List<String> parseKeys(String s) {
