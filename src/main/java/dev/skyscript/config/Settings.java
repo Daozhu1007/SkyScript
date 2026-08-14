@@ -50,8 +50,8 @@ public class Settings {
         public boolean toggleScript = true;
         /** 总控键是否切换攻击/摧毁模式（配合左键锁定） */
         public boolean toggleAttackMode = true;
-        /** 总控键是否切换 HUD 显示 */
-        public boolean toggleHud = true;
+        /** 总控键是否切换 HUD 显示（默认关：HUD 只在设置界面里开关） */
+        public boolean toggleHud = false;
         /** 启动/停止时是否发送聊天反馈消息 */
         public boolean feedback = true;
         /** 总控键按下时额外触发的按键（如 Lunar/SkyHanni 的锁定鼠标热键） */

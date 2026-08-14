@@ -372,7 +372,8 @@ public final class ScriptEngine {
         for (String name : triggers) {
             Integer code = KeyNames.glfwOf(name);
             if (code == null) continue;
-            if (!KeyEvents.consumeKeyUp(code)) continue;
+            // 仅在"短按（点击）松开"时触发；长按（如走路）不会启动/切换脚本
+            if (!KeyEvents.consumeClick(code, KeyEvents.MAX_CLICK_MS)) continue;
 
             if (!running) {
                 Script active = SkyScriptConfig.getActiveScript();

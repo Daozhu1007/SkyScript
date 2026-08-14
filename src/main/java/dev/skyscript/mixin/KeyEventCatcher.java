@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 捕获真实的按键抬起事件（Keyboard.onKey），供触发键使用。
+ * 捕获真实的键盘按下/松开事件（Keyboard.onKey），供触发键使用。
  * 事件驱动保证快速点击也不会漏检。
  */
 @Mixin(Keyboard.class)
@@ -18,7 +18,9 @@ public abstract class KeyEventCatcher {
 
     @Inject(method = "onKey", at = @At("HEAD"))
     private void skyScript$onKey(long window, int action, KeyInput input, CallbackInfo ci) {
-        if (action == GLFW.GLFW_RELEASE) {
+        if (action == GLFW.GLFW_PRESS) {
+            KeyEvents.onKeyDown(input.key());
+        } else if (action == GLFW.GLFW_RELEASE) {
             KeyEvents.onKeyUp(input.key());
         }
     }
