@@ -20,6 +20,12 @@ public class Settings {
     /** 活动方案名（F8 启动 / 触发键启动时运行它） */
     public String activeScript = "";
 
+    /** 总控键（默认 F8），轮询检测，可在设置里改名 */
+    public String masterKeyName = "F8";
+
+    /** 编辑器键（默认 H），轮询检测，可在设置里改名 */
+    public String editorKeyName = "H";
+
     public HudSettings hud = new HudSettings();
     public MasterSettings master = new MasterSettings();
 
@@ -37,13 +43,15 @@ public class Settings {
     }
 
     public static class MasterSettings {
-        /** F8 是否启停脚本 */
+        /** 总控键是否启停脚本 */
         public boolean toggleScript = true;
-        /** F8 是否切换攻击/摧毁模式（配合左键锁定） */
+        /** 总控键是否切换攻击/摧毁模式（配合左键锁定） */
         public boolean toggleAttackMode = true;
-        /** F8 是否切换 HUD 显示 */
+        /** 总控键是否切换 HUD 显示 */
         public boolean toggleHud = true;
-        /** F8 按下时额外触发的按键（如 Lunar/SkyHanni 的锁定鼠标热键） */
+        /** 启动/停止时是否发送聊天反馈消息 */
+        public boolean feedback = true;
+        /** 总控键按下时额外触发的按键（如 Lunar/SkyHanni 的锁定鼠标热键） */
         public List<ExternalKey> externalKeys = new ArrayList<>();
 
         public static class ExternalKey {
@@ -67,11 +75,26 @@ public class Settings {
         if (otherKeySemantics == null) otherKeySemantics = "switch";
         if (triggerKeys == null) triggerKeys = new ArrayList<>(List.of("A", "D"));
         if (activeScript == null) activeScript = "";
+        if (masterKeyName == null) masterKeyName = "F8";
+        if (editorKeyName == null) editorKeyName = "H";
         if (hud == null) hud = new HudSettings();
         if (hud.template == null) hud.template = "SkyScript §7{state} §f{script} §7{step} §f{timeLeft}s §7{attackMode}";
         if (hud.pos == null) hud.pos = "top-left";
         if (master == null) master = new MasterSettings();
         if (master.externalKeys == null) master.externalKeys = new ArrayList<>();
         if (master.externalKeys.isEmpty()) master.externalKeys.add(new MasterSettings.ExternalKey("PGDN", "inject"));
+    }
+
+    /** 恢复出厂默认（仅内存，点保存后落盘） */
+    public void resetToDefaults() {
+        currentKeySemantics = "ignore";
+        otherKeySemantics = "switch";
+        triggerKeys = new ArrayList<>(List.of("A", "D"));
+        activeScript = "";
+        masterKeyName = "F8";
+        editorKeyName = "H";
+        hud = new HudSettings();
+        master = new MasterSettings();
+        master.externalKeys.add(new MasterSettings.ExternalKey("PGDN", "inject"));
     }
 }

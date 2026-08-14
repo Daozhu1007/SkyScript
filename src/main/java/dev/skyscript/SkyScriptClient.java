@@ -3,8 +3,11 @@ package dev.skyscript;
 import dev.skyscript.config.SkyScriptConfig;
 import dev.skyscript.engine.ScriptEngine;
 import dev.skyscript.hud.ScriptHud;
+import dev.skyscript.input.KeyNames;
 import dev.skyscript.screen.ScriptListScreen;
+import dev.skyscript.screen.SettingsScreen;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -16,6 +19,11 @@ import net.minecraft.client.util.InputUtil;
 import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
+
 public class SkyScriptClient implements ClientModInitializer {
 
     private static final KeyBinding.Category CATEGORY =
@@ -24,14 +32,14 @@ public class SkyScriptClient implements ClientModInitializer {
     public static KeyBinding masterKey;
     public static KeyBinding editorKey;
 
+    /** 轮询按下沿检测用的历史状态（键名 → 上一帧是否按下） */
+    private static final Map<String, Boolean> prevKeyStates = new HashMap<>();
+
     @Override
     public void onInitializeClient() {
-        masterKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.sky_script.master", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_F8, CATEGORY));
-        editorKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.sky_script.open_editor", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_H, CATEGORY));
-
         SkyScriptConfig.load();
+        registerKeyBindings();
+        registerCommands();
 
         ClientTickEvents.END_CLIENT_TICK.register(SkyScriptClient::onTick);
         HudRenderCallback.EVENT.register(ScriptHud::render);
@@ -39,13 +47,61 @@ public class SkyScriptClient implements ClientModInitializer {
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> ScriptEngine.INSTANCE.stop());
     }
 
+    private static void registerKeyBindings() {
+        String master = SkyScriptConfig.get().masterKeyName;
+        String editor = SkyScriptConfig.get().editorKeyName;
+        masterKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.sky_script.master", InputUtil.Type.KEYSYM, keyOf(master, GLFW.GLFW_KEY_F8), CATEGORY));
+        editorKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.sky_script.open_editor", InputUtil.Type.KEYSYM, keyOf(editor, GLFW.GLFW_KEY_H), CATEGORY));
+    }
+
+    private static int keyOf(String name, int fallback) {
+        Integer code = KeyNames.glfwOf(name);
+        return code == null ? fallback : code;
+    }
+
+    private static void registerCommands() {
+        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
+            dispatcher.register(literal("skyscript")
+                    .executes(ctx -> { // /skyscript → 设置界面
+                        ctx.getSource().getClient().setScreen(new SettingsScreen());
+                        return 1;
+                    })
+                    .then(literal("editor").executes(ctx -> { // /skyscript editor → 方案编辑
+                        ctx.getSource().getClient().setScreen(new ScriptListScreen());
+                        return 1;
+                    }))
+                    .then(literal("help").executes(ctx -> {
+                        Feedback.notify("§a[SkyScript] §f命令: §e/skyscript§f 设置 · §e/skyscript editor§f 方案编辑 · §e/skyscript help§f 帮助 · 快捷键 §eH§f 方案编辑 / §eF8§f 总控");
+                        return 1;
+                    })));
+        });
+    }
+
     private static void onTick(MinecraftClient client) {
-        if (masterKey.wasPressed()) {
+        if (wasActivated(client, masterKey, SkyScriptConfig.get().masterKeyName)) {
             MasterController.onMasterPressed();
         }
-        if (editorKey.wasPressed() && client.currentScreen == null) {
+        if (wasActivated(client, editorKey, SkyScriptConfig.get().editorKeyName) && client.currentScreen == null) {
             client.setScreen(new ScriptListScreen());
         }
         ScriptEngine.INSTANCE.tick(client);
+    }
+
+    /**
+     * 双通道检测：KeyBinding.wasPressed() + GLFW 轮询按下沿。
+     * 1.21.11 输入重构后 KeyBinding 的按下状态时序不可靠，轮询通道保证按键必响应。
+     */
+    private static boolean wasActivated(MinecraftClient client, KeyBinding binding, String configKey) {
+        boolean pressed = false;
+        Integer code = KeyNames.glfwOf(configKey);
+        if (code != null && client.getWindow() != null) {
+            pressed = InputUtil.isKeyPressed(client.getWindow(), code);
+        }
+        boolean prev = prevKeyStates.getOrDefault(configKey, false);
+        prevKeyStates.put(configKey, pressed);
+        boolean edge = pressed && !prev;
+        return edge || (binding != null && binding.wasPressed());
     }
 }

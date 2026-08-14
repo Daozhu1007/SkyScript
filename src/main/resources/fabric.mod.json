@@ -1,4 +1,4 @@
-{
+﻿{
     "schemaVersion":  1,
     "id":  "sky_script",
     "version":  "${version}",
@@ -12,7 +12,10 @@
     "entrypoints":  {
                         "client":  [
                                        "dev.skyscript.SkyScriptClient"
-                                   ]
+                                   ],
+                        "modmenu":  [
+                                        "dev.skyscript.SkyScriptModMenu"
+                                    ]
                     },
     "mixins":  [
                    {
@@ -25,5 +28,8 @@
                     "fabric-api":  "*",
                     "minecraft":  "~1.21.11",
                     "java":  "\u003e=21"
-                }
+                },
+    "suggests":  {
+                     "modmenu":  "\u003e=17.0.0"
+                 }
 }

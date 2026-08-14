@@ -2,6 +2,7 @@ package dev.skyscript.engine;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import dev.skyscript.Feedback;
 import dev.skyscript.config.SkyScriptConfig;
 import dev.skyscript.input.KeyNames;
 import dev.skyscript.input.KeySimulator;
@@ -374,6 +375,7 @@ public final class ScriptEngine {
                 if (KeyNames.isLateralKey(name)) lateralBias = name;
                 start(active);
                 if (KeyNames.isLateralKey(name)) applyLateralBias(lateralBias);
+                Feedback.notify("§a[SkyScript] §f触发启动: §e" + active.name + " §7(从 " + name + " 开始)");
             } else {
                 handleRunTrigger(name);
             }
@@ -383,13 +385,17 @@ public final class ScriptEngine {
     private void handleRunTrigger(String name) {
         if (lateralKey == null) return;
         if (name.equals(lateralKey)) {
-            if ("stop".equals(SkyScriptConfig.get().currentKeySemantics)) stop();
+            if ("stop".equals(SkyScriptConfig.get().currentKeySemantics)) {
+                stop();
+                Feedback.notify("§c[SkyScript] §f已停止");
+            }
             return;
         }
         if (!KeyNames.isLateralKey(name)) return;
         // 切换方向：重算 bias，使当前列变成新键
         lateralBias = name;
         applyLateralBias(name);
+        Feedback.notify("§7[SkyScript] §f切换到 §e" + name);
         // 重置当前步骤计时
         phaseStartMs = nowMs();
         if (curStep != null && "time".equals(curStep.untilType)) {
