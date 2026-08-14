@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import dev.skyscript.Feedback;
 import dev.skyscript.config.SkyScriptConfig;
+import dev.skyscript.input.KeyEvents;
 import dev.skyscript.input.KeyNames;
 import dev.skyscript.input.KeySimulator;
 import dev.skyscript.input.MovementController;
@@ -355,27 +356,23 @@ public final class ScriptEngine {
     /** 进入世界时重置触发键历史状态，防止跨世界残留误触发 */
     public void resetTriggers() {
         prevTrigger.clear();
+        KeyEvents.clear();
     }
 
+    /**
+     * 事件驱动触发：由 KeyEventCatcher 捕获真实按键抬起事件（Keyboard.onKey），
+     * 语义与 AHK 的 key-up 触发一致，快速点击也不会漏检。
+     */
     private void pollTriggers(MinecraftClient client) {
         // 打开界面时不响应触发键（冻结期间保持静默）
         if (client.currentScreen != null) return;
         List<String> triggers = SkyScriptConfig.get().triggerKeys;
         if (triggers == null || triggers.isEmpty()) return;
-        var win = client.getWindow();
-        if (win == null) return;
+        KeyEvents.cleanup();
         for (String name : triggers) {
             Integer code = KeyNames.glfwOf(name);
             if (code == null) continue;
-            boolean pressed = InputUtil.isKeyPressed(win, code);
-            if (!prevTrigger.containsKey(name)) {
-                prevTrigger.put(name, pressed);
-                continue;
-            }
-            boolean prev = prevTrigger.get(name);
-            prevTrigger.put(name, pressed);
-            // 仅在"按下 → 抬起"沿触发：prev=true 且 pressed=false
-            if (!(prev && !pressed)) continue;
+            if (!KeyEvents.consumeKeyUp(code)) continue;
 
             if (!running) {
                 Script active = SkyScriptConfig.getActiveScript();

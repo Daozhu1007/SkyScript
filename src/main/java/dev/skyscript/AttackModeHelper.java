@@ -6,11 +6,14 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 /**
- * 攻击/摧毁模式（HOLD / TOGGLE）读写。
+ * 攻击/摧毁模式（切换 / 长按）读写。
  *
- * <p>这是 1.21.2+ 加入的 GameOptions 里的一个 SimpleOption（枚举 AttackMode: HOLD/TOGGLE）。
- * 字段名/类名随版本可能变化，这里用反射 + 启发式查找（名字含 attackMode，或值枚举含
- * HOLD/TOGGLE），保证跨版本健壮 —— 版本隔离的关键点之一。
+ * <p>1.21.2+ 的 GameOptions 里该选项经历了几种形态：
+ * <ul>
+ *   <li>1.21.11 及之后：{@code attackToggled}（SimpleOption&lt;Boolean&gt;，true=切换模式）</li>
+ *   <li>早期版本：枚举（HOLD/TOGGLE）形式的 SimpleOption</li>
+ * </ul>
+ * 用反射 + 启发式查找（优先名字 attackToggled，回退值枚举含 HOLD/TOGGLE），跨版本健壮。
  */
 public final class AttackModeHelper {
 
@@ -32,10 +35,12 @@ public final class AttackModeHelper {
             Class<?> optCls = c.options.getClass();
             for (Class<?> cls = optCls; cls != null; cls = cls.getSuperclass()) {
                 for (Field f : cls.getDeclaredFields()) {
-                    if ("attackMode".equals(f.getName())) {
+                    // 1.21.11+：attackToggled (SimpleOption<Boolean>)
+                    if ("attackToggled".equals(f.getName())) {
                         optionField = f;
                         break;
                     }
+                    // 旧版：枚举 HOLD/TOGGLE 启发式
                     if (!"net.minecraft.client.option.SimpleOption".equals(f.getType().getName())) continue;
                     f.setAccessible(true);
                     Object opt = f.get(c.options);
@@ -81,6 +86,7 @@ public final class AttackModeHelper {
         if (!init()) return false;
         try {
             Object v = getValue.invoke(option);
+            if (v instanceof Boolean b) return b;
             return v != null && v.toString().toUpperCase().contains("TOGGLE");
         } catch (Exception e) {
             return false;
@@ -92,6 +98,11 @@ public final class AttackModeHelper {
         if (!init()) return false;
         try {
             Object v = getValue.invoke(option);
+            if (v instanceof Boolean b) {
+                if (b == toggle) return true;
+                setValue.invoke(option, toggle);
+                return true;
+            }
             if (v == null) return false;
             @SuppressWarnings({"unchecked", "rawtypes"})
             Enum<?> target = Enum.valueOf((Class<? extends Enum>) v.getClass(), toggle ? "TOGGLE" : "HOLD");

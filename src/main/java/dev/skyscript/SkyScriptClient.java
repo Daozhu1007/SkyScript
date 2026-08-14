@@ -31,6 +31,7 @@ public class SkyScriptClient implements ClientModInitializer {
 
     public static KeyBinding masterKey;
     public static KeyBinding editorKey;
+    public static KeyBinding settingsKey;
 
     /** 轮询按下沿检测用的历史状态（键名 → 上一帧是否按下） */
     private static final Map<String, Boolean> prevKeyStates = new HashMap<>();
@@ -63,10 +64,13 @@ public class SkyScriptClient implements ClientModInitializer {
     private static void registerKeyBindings() {
         String master = SkyScriptConfig.get().masterKeyName;
         String editor = SkyScriptConfig.get().editorKeyName;
+        String settings = SkyScriptConfig.get().settingsKeyName;
         masterKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.sky_script.master", InputUtil.Type.KEYSYM, keyOf(master, GLFW.GLFW_KEY_F8), CATEGORY));
         editorKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.sky_script.open_editor", InputUtil.Type.KEYSYM, keyOf(editor, GLFW.GLFW_KEY_H), CATEGORY));
+        settingsKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.sky_script.open_settings", InputUtil.Type.KEYSYM, keyOf(settings, GLFW.GLFW_KEY_O), CATEGORY));
     }
 
     private static int keyOf(String name, int fallback) {
@@ -78,15 +82,17 @@ public class SkyScriptClient implements ClientModInitializer {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
             dispatcher.register(literal("skyscript")
                     .executes(ctx -> { // /skyscript → 设置界面
+                        Feedback.notify("§7[SkyScript] §f打开设置…（也可按 §eO§f）");
                         ctx.getSource().getClient().setScreen(new SettingsScreen());
                         return 1;
                     })
                     .then(literal("editor").executes(ctx -> { // /skyscript editor → 方案编辑
+                        Feedback.notify("§7[SkyScript] §f打开方案编辑…（也可按 §eH§f）");
                         ctx.getSource().getClient().setScreen(new ScriptListScreen());
                         return 1;
                     }))
                     .then(literal("help").executes(ctx -> {
-                        Feedback.notify("§a[SkyScript] §f命令: §e/skyscript§f 设置 · §e/skyscript editor§f 方案编辑 · §e/skyscript help§f 帮助 · 快捷键 §eH§f 方案编辑 / §eF8§f 总控");
+                        Feedback.notify("§a[SkyScript] §f命令: §e/skyscript§f 设置 · §e/skyscript editor§f 方案编辑 · §e/skyscript help§f 帮助 · 快捷键 §eO§f 设置 / §eH§f 方案编辑 / §eF8§f 总控");
                         return 1;
                     })));
         });
@@ -98,6 +104,9 @@ public class SkyScriptClient implements ClientModInitializer {
         }
         if (wasActivated(client, editorKey, SkyScriptConfig.get().editorKeyName) && client.currentScreen == null) {
             client.setScreen(new ScriptListScreen());
+        }
+        if (wasActivated(client, settingsKey, SkyScriptConfig.get().settingsKeyName) && client.currentScreen == null) {
+            client.setScreen(new SettingsScreen());
         }
         ScriptEngine.INSTANCE.tick(client);
     }
