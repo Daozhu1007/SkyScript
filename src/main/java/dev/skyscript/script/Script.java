@@ -19,6 +19,19 @@ public class Script {
         this.name = name;
     }
 
+    /** 整份方案的一句话人话描述（列表卡片用），最多展示前几步 */
+    public String describe() {
+        if (steps == null || steps.isEmpty()) return "空方案（还没加动作）";
+        StringBuilder sb = new StringBuilder();
+        int n = Math.min(steps.size(), 3);
+        for (int i = 0; i < n; i++) {
+            if (i > 0) sb.append("  →  ");
+            sb.append(steps.get(i).summary());
+        }
+        if (steps.size() > n) sb.append("  …");
+        return sb.toString();
+    }
+
     /** 深拷贝（引擎启动时使用，避免污染配置文件里的原始数据） */
     public Script copy() {
         Script s = new Script();

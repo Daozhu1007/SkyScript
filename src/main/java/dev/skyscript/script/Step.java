@@ -54,15 +54,15 @@ public class Step {
         return s;
     }
 
-    /** 生成一行人话摘要（编辑器列表用），如「长按 A 直到 x≤100.5」 */
+    /** 生成一行人话摘要（编辑器列表用），如「按 A 直到坐标 x≤100, y≥64」 */
     public String summary() {
         return switch (type) {
             case "wait" -> "等待 " + sec(Math.max(0, ms));
-            case "hold" -> "长按 " + keysDesc() + "，直到" + untilDesc();
+            case "hold" -> "按 " + keysDesc() + " 直到坐标 " + untilDesc();
             case "press" -> "hold".equals(mode)
-                    ? "按住 " + keysDesc() + "，直到" + untilDesc()
+                    ? "按住 " + keysDesc() + " 直到坐标 " + untilDesc()
                     : "点按 " + keysDesc();
-            case "command" -> "执行 " + (value == null || value.isEmpty() ? "/…" : value);
+            case "command" -> "发送指令 " + (value == null || value.isEmpty() ? "/…" : value);
             case "loop" -> "循环 " + Math.max(1, times) + " 次（" + body.size() + " 步）";
             default -> type;
         };
@@ -75,22 +75,32 @@ public class Step {
 
     private String untilDesc() {
         return switch (untilType == null ? "time" : untilType) {
-            case "position" -> cond == null || cond.isEmpty() ? " 坐标" : condText(cond.get(0));
+            case "position" -> cond == null || cond.isEmpty() ? "（未设）" : condsText();
             case "manual" -> "手动结束";
-            default -> " " + sec(Math.max(0, ms));
+            default -> "（持续 " + sec(Math.max(0, ms)) + "）";
         };
     }
 
-    /** 坐标条件的人话：x≤100.5、y≥-64 等 */
-    private static String condText(PosCond pc) {
-        String op = switch (pc.op) {
+    /** 所有坐标条件，逗号连接：x≤100, y≥64 */
+    private String condsText() {
+        StringBuilder sb = new StringBuilder();
+        for (PosCond pc : cond) {
+            if (pc == null) continue;
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(pc.axis).append(condOp(pc.op)).append(trimZero(pc.value));
+        }
+        return sb.toString();
+    }
+
+    private static String condOp(String op) {
+        return switch (op) {
             case "<=" -> "≤";
             case ">=" -> "≥";
             case "==" -> "=";
             case "<" -> "<";
-            default -> ">";
+            case ">" -> ">";
+            default -> op;
         };
-        return " " + pc.axis + op + trimZero(pc.value);
     }
 
     private static String trimZero(double d) {

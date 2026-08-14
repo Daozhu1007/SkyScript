@@ -45,9 +45,8 @@ public class SkyScriptScreen extends Screen {
     private static final String[][] METH = {{"游戏内注入", "inject"}, {"系统级模拟", "os"}};
     private static final String[][] OPS_MAP = {{"≤", "<="}, {"≥", ">="}, {"<", "<"}, {">", ">"}, {"=", "=="}};
     private static final String[][] UNTIL_MAP = {{"到时间", "time"}, {"到坐标", "position"}, {"手动", "manual"}};
+    private static final String[][] POS_OPS = {{"忽略", "ignore"}, {"≤", "<="}, {"≥", ">="}, {"<", "<"}, {">", ">"}, {"=", "=="}};
     private static final String[] STEP_TYPE_ORDER = {"按住按键（长按）", "点按按键", "等待", "发送指令", "循环"};
-    private static final String[] AXES = {"x", "y", "z"};
-    private static final String[] OPS = {"<=", ">=", "<", ">", "=="};
 
     private Tab tab;
     private int scroll;
@@ -72,7 +71,9 @@ public class SkyScriptScreen extends Screen {
     private int stepDeleteArm = -1;
     private boolean capturing;
     // 步骤编辑表单临时文本
-    private String msText = "", timesText = "1", cmdText = "", posValueText = "0";
+    private String msText = "", timesText = "1", cmdText = "";
+    // 坐标条件（X/Y/Z 三轴，忽略=不限）
+    private String posOpX = "忽略", posValX = "0", posOpY = "忽略", posValY = "0", posOpZ = "忽略", posValZ = "0";
 
     // ---- 新建方案向导 ----
     private boolean inWizard;
@@ -349,40 +350,58 @@ public class SkyScriptScreen extends Screen {
         addSection("脚本方案");
         addLabel("活动: " + activeScriptName(), 0xFFFFFF);
 
-        // 新建方案 → 打开向导
-        addDrawableChild(ButtonWidget.builder(Text.literal("新建方案…"), b -> {
+        // 新建
+        addDrawableChild(ButtonWidget.builder(Text.literal("新建空方案"), b -> {
+            String nm = uniqueName("Preset");
+            Script s = new Script(nm); // 空方案，从零加动作
+            SkyScriptConfig.saveScript(s);
+            SkyScriptConfig.get().activeScript = s.name;
+            SkyScriptConfig.save();
+            editingScript = s;
+            stepsStack.clear();
+            stepsStack.push(s.steps);
+            editingStep = null;
+            scroll = 0;
+            refresh();
+        }).dimensions(CONTENT_X, this.height - 34, 100, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("农田向导…"), b -> {
             inWizard = true;
             wizName = "";
             scroll = 0;
             refresh();
-        }).dimensions(CONTENT_X, this.height - 34, 90, 20).build());
+        }).dimensions(CONTENT_X + 106, this.height - 34, 90, 20).build());
 
         int zoneStart = this.width - 16 - ZONE_W * 3 - ZONE_GAP * 2;
         for (int i = 0; i < scripts.size(); i++) {
             Script s = scripts.get(i);
-            int y = yOf(nextRow++);
             boolean isActive = s.name.equals(activeScriptName());
+            // 第 1 行：名字 + 循环 + 操作区
+            int y = yOf(nextRow++);
             renderItems.add(new Object[]{y,
-                    (isActive ? "§a▶ " : "  ") + s.name + "  " + s.steps.size() + " 步" + (s.loop == 0 ? "（无限）" : "（×" + s.loop + "）"), 0});
-            if (!visible(y)) continue;
-            addDrawableChild(zoneBtn(zoneStart, y, 0, isActive ? "§a活动" : "活动",
-                    b -> { SkyScriptConfig.get().activeScript = s.name; SkyScriptConfig.save(); refresh(); }));
-            addDrawableChild(zoneBtn(zoneStart, y, 1, "编辑",
-                    b -> { editingScript = s; stepsStack.clear(); stepsStack.push(s.steps); editingStep = null; scroll = 0; refresh(); }));
-            addDrawableChild(zoneBtn(zoneStart, y, 2, deleteArm.equals(s.name) ? "确认?" : "§c删除",
-                    b -> {
-                        if (deleteArm.equals(s.name)) {
-                            if (s.name.equals(SkyScriptConfig.get().activeScript)) SkyScriptConfig.get().activeScript = "";
-                            SkyScriptConfig.deleteScript(s.name);
-                            deleteArm = "";
-                        } else {
-                            deleteArm = s.name;
-                        }
-                        refresh();
-                    }));
+                    (isActive ? "§a▶ " : "  ") + s.name + "   §7" + (s.loop == 0 ? "无限循环" : "×" + s.loop + " 轮"), 3});
+            if (visible(y)) {
+                addDrawableChild(zoneBtn(zoneStart, y, 0, isActive ? "§a活动" : "活动",
+                        b -> { SkyScriptConfig.get().activeScript = s.name; SkyScriptConfig.save(); refresh(); }));
+                addDrawableChild(zoneBtn(zoneStart, y, 1, "编辑",
+                        b -> { editingScript = s; stepsStack.clear(); stepsStack.push(s.steps); editingStep = null; scroll = 0; refresh(); }));
+                addDrawableChild(zoneBtn(zoneStart, y, 2, deleteArm.equals(s.name) ? "确认?" : "§c删除",
+                        b -> {
+                            if (deleteArm.equals(s.name)) {
+                                if (s.name.equals(SkyScriptConfig.get().activeScript)) SkyScriptConfig.get().activeScript = "";
+                                SkyScriptConfig.deleteScript(s.name);
+                                deleteArm = "";
+                            } else {
+                                deleteArm = s.name;
+                            }
+                            refresh();
+                        }));
+            }
+            // 第 2 行：整份方案的人话描述
+            int y2 = yOf(nextRow++);
+            renderItems.add(new Object[]{y2, "§7" + s.describe(), 3});
         }
         if (scripts.isEmpty()) {
-            addLabel("还没有方案，点右上「新建方案…」用向导生成", 0xFFFFFF);
+            addLabel("还没有方案，点「新建空方案」从零开始，或用「农田向导」", 0xFFFFFF);
         }
     }
 
@@ -484,16 +503,15 @@ public class SkyScriptScreen extends Screen {
         String title = stepsTitle();
 
         addSection(title);
-        // 添加步骤 / 返回
-        addDrawableChild(ButtonWidget.builder(Text.literal("添加步骤"), b -> {
+        // 添加动作 / 返回
+        addDrawableChild(ButtonWidget.builder(Text.literal("添加动作"), b -> {
             Step step = new Step();
-            step.cond.add(new PosCond()); // 保证 position 条件至少一项可编辑
             editingStep = step;
             steps.add(step);
             msText = "";
             timesText = "1";
             cmdText = "";
-            posValueText = "0";
+            resetPosForm();
             capturing = false;
             refresh();
         }).dimensions(CONTENT_X, this.height - 34, 90, 20).build());
@@ -506,7 +524,7 @@ public class SkyScriptScreen extends Screen {
             final int idx = i;
             Step st = steps.get(i);
             int y = yOf(nextRow++);
-            renderItems.add(new Object[]{y, (i + 1) + ". " + st.summary(), 0});
+            renderItems.add(new Object[]{y, (i + 1) + ". " + st.summary(), 3});
             if (!visible(y)) continue;
             int col = 0;
             if (i > 0) addDrawableChild(zoneBtn(zoneStart, y, col++, "↑", b -> moveStep(steps, idx, idx - 1)));
@@ -527,7 +545,7 @@ public class SkyScriptScreen extends Screen {
                     }));
         }
         if (steps.isEmpty()) {
-            addLabel("还没有步骤，点「添加步骤」开始", 0xFFFFFF);
+            addLabel("还没有动作，点「添加动作」开始", 0xFFFFFF);
         }
     }
 
@@ -560,8 +578,7 @@ public class SkyScriptScreen extends Screen {
         msText = formatSeconds(st.ms);
         timesText = st.times > 0 ? String.valueOf(st.times) : "1";
         cmdText = st.value == null ? "" : st.value;
-        if (st.cond.isEmpty()) st.cond.add(new PosCond());
-        posValueText = String.valueOf(st.cond.get(0).value);
+        loadPosForm(st.cond);
         capturing = false;
         scroll = 0;
         refresh();
@@ -590,21 +607,10 @@ public class SkyScriptScreen extends Screen {
                     if ("time".equals(st.untilType)) {
                         textRow("时长（秒）", msText, v -> msText = v, "按住多久，如 120 / 0.5");
                     } else if ("position".equals(st.untilType)) {
-                        PosCond pc = st.cond.isEmpty() ? new PosCond() : st.cond.get(0);
-                        int py = yOf(nextRow++);
-                        if (visible(py)) {
-                            addDrawableChild(ButtonWidget.builder(Text.literal("坐标轴: " + pc.axis), b -> {
-                                pc.axis = next(AXES, pc.axis); refresh();
-                            }).dimensions(LABEL_X, py, 120, 20).build());
-                            addDrawableChild(ButtonWidget.builder(Text.literal(opDisplay(pc.op)), b -> {
-                                pc.op = next(OPS, pc.op); refresh();
-                            }).dimensions(LABEL_X + 126, py, 52, 20).build());
-                            TextFieldWidget val = new TextFieldWidget(this.textRenderer, LABEL_X + 184, py, 80, 20, Text.literal("坐标值"));
-                            val.setMaxLength(16);
-                            val.setText(posValueText);
-                            val.setChangedListener(v -> posValueText = v);
-                            addDrawableChild(val);
-                        }
+                        addSection("走到坐标（忽略=不限该轴）");
+                        posAxisRow("X", posOpX, posValX, v -> posOpX = v, v -> posValX = v);
+                        posAxisRow("Y", posOpY, posValY, v -> posOpY = v, v -> posValY = v);
+                        posAxisRow("Z", posOpZ, posValZ, v -> posOpZ = v, v -> posValZ = v);
                     }
                 }
             }
@@ -692,11 +698,6 @@ public class SkyScriptScreen extends Screen {
         };
     }
 
-    private static String opDisplay(String op) {
-        for (String[] p : OPS_MAP) if (p[1].equals(op)) return p[0];
-        return op;
-    }
-
     private static String[] displayOf(String[][] map) {
         String[] out = new String[map.length];
         for (int i = 0; i < map.length; i++) out[i] = map[i][0];
@@ -720,11 +721,69 @@ public class SkyScriptScreen extends Screen {
         } catch (NumberFormatException ignored) {
         }
         st.value = cmdText;
-        if (st.cond.isEmpty()) st.cond.add(new PosCond());
+        // 坐标条件：按 X/Y/Z 重建（"忽略"的轴不加入）
+        List<PosCond> conds = new ArrayList<>();
+        addAxisCond(conds, "x", posOpX, posValX);
+        addAxisCond(conds, "y", posOpY, posValY);
+        addAxisCond(conds, "z", posOpZ, posValZ);
+        st.cond = conds;
+    }
+
+    private static void addAxisCond(List<PosCond> conds, String axis, String op, String val) {
+        if (op == null || "ignore".equals(op)) return;
         try {
-            st.cond.get(0).value = Double.parseDouble(posValueText.trim());
-        } catch (NumberFormatException ignored) {
+            conds.add(new PosCond(axis, op, Double.parseDouble(val.trim())));
+        } catch (Exception ignored) {
         }
+    }
+
+    /** 打开表单时从步骤现有坐标条件填充 X/Y/Z */
+    private void loadPosForm(List<PosCond> conds) {
+        resetPosForm();
+        if (conds != null) {
+            for (PosCond pc : conds) {
+                if (pc == null) continue;
+                switch (pc.axis == null ? "x" : pc.axis) {
+                    case "y" -> { posOpY = pc.op; posValY = fmtNum(pc.value); }
+                    case "z" -> { posOpZ = pc.op; posValZ = fmtNum(pc.value); }
+                    default -> { posOpX = pc.op; posValX = fmtNum(pc.value); }
+                }
+            }
+        }
+    }
+
+    private void resetPosForm() {
+        posOpX = "忽略"; posValX = "0";
+        posOpY = "忽略"; posValY = "0";
+        posOpZ = "忽略"; posValZ = "0";
+    }
+
+    private static String fmtNum(double d) {
+        if (d == (long) d) return String.valueOf((long) d);
+        return String.valueOf(d);
+    }
+
+    /** 一行坐标轴：轴名 + 比较符按钮 + 值输入框 */
+    private void posAxisRow(String axis, String op, String val, Consumer<String> onOp, Consumer<String> onVal) {
+        int y = yOf(nextRow++);
+        renderItems.add(new Object[]{y, axis, 0});
+        if (!visible(y)) return;
+        String[] displays = displayOf(POS_OPS);
+        String cur = curDisplay(POS_OPS, op);
+        addDrawableChild(ButtonWidget.builder(Text.literal(cur), b -> {
+            onOp.accept(storeOf(POS_OPS, next(displays, cur)));
+            refresh();
+        }).dimensions(LABEL_X + 18, y, 62, 20).build());
+        TextFieldWidget tf = new TextFieldWidget(this.textRenderer, LABEL_X + 86, y, 100, 20, Text.literal(axis + " 坐标值"));
+        tf.setMaxLength(16);
+        tf.setText(val);
+        tf.setChangedListener(onVal);
+        addDrawableChild(tf);
+    }
+
+    private static String curDisplay(String[][] map, String store) {
+        for (String[] p : map) if (p[1].equals(store)) return p[0];
+        return map[0][0];
     }
 
     private static String next(String[] options, String current) {
@@ -749,6 +808,10 @@ public class SkyScriptScreen extends Screen {
                 ctx.drawText(this.textRenderer, Text.literal(text), LABEL_X, y, 0xFFD67E, true);
             } else if (flag == 2) {
                 ctx.drawText(this.textRenderer, Text.literal(text), LABEL_X, y, 0xAAAAAA, true);
+            } else if (flag == 3) {
+                // 列表行：深色底 + 白字，保证人话文字一眼可读
+                ctx.fill(LABEL_X - 4, y - 2, this.width - 250, y + 16, 0x65000000);
+                ctx.drawText(this.textRenderer, Text.literal(text), LABEL_X, y, 0xFFFFFF, true);
             } else {
                 ctx.drawText(this.textRenderer, Text.literal(text), LABEL_X, y, 0xFFFFFF, true);
             }
