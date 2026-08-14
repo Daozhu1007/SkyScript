@@ -22,6 +22,9 @@ public final class KeyEvents {
     private static final Map<Integer, Long> keyUpTimes = new HashMap<>();
     private static final Map<Integer, Long> keyUpDurations = new HashMap<>();
 
+    /** 最近按下的键队列（供"录制按键"用，任何真实按键都会进队列） */
+    private static final java.util.ArrayDeque<Integer> pressedQueue = new java.util.ArrayDeque<>();
+
     /** 注入标记：KeySimulator 注入事件时置 true，KeyEventCatcher 据此跳过，防止注入触发"幻影点击" */
     private static boolean injecting;
 
@@ -41,6 +44,12 @@ public final class KeyEvents {
     /** 由 mixin 调用：记录按下（GLFW keycode） */
     public static void onKeyDown(int keyCode) {
         keyDownTimes.put(keyCode, System.currentTimeMillis());
+        pressedQueue.add(keyCode);
+    }
+
+    /** 取出最早一次按下的键（供"录制按键"用）；无则返回 null。取走即移除。 */
+    public static Integer pollPressed() {
+        return pressedQueue.poll();
     }
 
     /** 由 mixin 调用：记录松开（GLFW keycode）与按住时长 */
@@ -80,5 +89,6 @@ public final class KeyEvents {
         keyDownTimes.clear();
         keyUpTimes.clear();
         keyUpDurations.clear();
+        pressedQueue.clear();
     }
 }

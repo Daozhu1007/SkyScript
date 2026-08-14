@@ -2,6 +2,7 @@ package dev.skyscript.screen;
 
 import dev.skyscript.config.Settings;
 import dev.skyscript.config.SkyScriptConfig;
+import dev.skyscript.input.KeyEvents;
 import dev.skyscript.input.KeyNames;
 import dev.skyscript.script.PosCond;
 import dev.skyscript.script.Script;
@@ -12,6 +13,7 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -589,18 +591,18 @@ public class SkyScriptScreen extends Screen {
     private void buildStepEdit() {
         if (editingStep == null) return;
         Step st = editingStep;
-        addSection("编辑步骤");
-
+        addSection("编辑动作");
+        addLabel("点击顶部「动作」切换类型：按住=长按移动 · 点按=按一下 · 等待 · 发指令 · 循环", 2);
         addStepTypeButton(st);
 
         switch (st.type) {
             case "hold", "press" -> {
                 addSection("按键");
-                addLabel("当前按键: " + (st.keys.isEmpty() ? "（空，点录制）" : st.keys.toString()), 0xFFFFFF);
-                addDrawableChild(ButtonWidget.builder(Text.literal(capturing ? "…按任意键录入 (ESC 取消)" : "录制按键"), b -> capturing = true)
-                        .dimensions(LABEL_X, yOf(nextRow++), 140, 20).build());
+                addLabel("当前按键: " + (st.keys.isEmpty() ? "（未设）" : st.keys.toString()), 3);
+                addDrawableChild(ButtonWidget.builder(Text.literal(capturing ? "按任意键录入… (ESC 取消)" : "录制按键"), b -> { capturing = true; refresh(); })
+                        .dimensions(LABEL_X, yOf(nextRow++), 180, 20).build());
                 addDrawableChild(ButtonWidget.builder(Text.literal("清除按键"), b -> { st.keys.clear(); refresh(); })
-                        .dimensions(LABEL_X + 146, yOf(nextRow - 1), 90, 20).build());
+                        .dimensions(LABEL_X + 186, yOf(nextRow - 1), 90, 20).build());
                 // 只有"长按"才需要结束条件；点按是一次性按下
                 if ("hold".equals(st.type) || "hold".equals(st.mode)) {
                     addUntilButton(st);
@@ -827,19 +829,37 @@ public class SkyScriptScreen extends Screen {
         return true;
     }
 
+    /**
+     * 每 tick 检查"录制按键"：从 KeyEvents（KeyEventCatcher mixin 记录的真实按键）读取，
+     * 不依赖 Screen.keyPressed（后者可能被输入框焦点吃掉）。
+     */
+    @Override
+    public void tick() {
+        super.tick();
+        if (capturing && editingStep != null) {
+            Integer kc = KeyEvents.pollPressed();
+            if (kc != null) {
+                handleCapturedKey(kc);
+            }
+        }
+    }
+
+    private void handleCapturedKey(int kc) {
+        if (kc == GLFW.GLFW_KEY_ESCAPE) {
+            capturing = false;
+            refresh();
+            return;
+        }
+        String name = KeyNames.nameOf(kc);
+        if (!editingStep.keys.contains(name)) editingStep.keys.add(name);
+        capturing = false;
+        refresh();
+    }
+
     @Override
     public boolean keyPressed(KeyInput input) {
-        if (capturing) {
-            if (input.isEscape()) {
-                capturing = false;
-            } else if (editingStep != null) {
-                String name = KeyNames.nameOf(input.key());
-                if (!editingStep.keys.contains(name)) editingStep.keys.add(name);
-                capturing = false;
-            }
-            refresh();
-            return true;
-        }
+        // 录制期间吞掉所有按键（由 tick 处理），防止 ESC 顺手关掉面板 / 键进输入框
+        if (capturing) return true;
         return super.keyPressed(input);
     }
 
