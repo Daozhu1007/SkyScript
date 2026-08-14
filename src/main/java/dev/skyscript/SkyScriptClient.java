@@ -4,8 +4,7 @@ import dev.skyscript.config.SkyScriptConfig;
 import dev.skyscript.engine.ScriptEngine;
 import dev.skyscript.hud.ScriptHud;
 import dev.skyscript.input.KeyNames;
-import dev.skyscript.screen.ScriptListScreen;
-import dev.skyscript.screen.SettingsScreen;
+import dev.skyscript.screen.SkyScriptScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
@@ -30,7 +29,6 @@ public class SkyScriptClient implements ClientModInitializer {
             new KeyBinding.Category(Identifier.of("sky_script", "category"));
 
     public static KeyBinding masterKey;
-    public static KeyBinding editorKey;
     public static KeyBinding settingsKey;
 
     /** 轮询按下沿检测用的历史状态（键名 → 上一帧是否按下） */
@@ -40,8 +38,7 @@ public class SkyScriptClient implements ClientModInitializer {
      * 命令里延迟打开界面的标志：/skyscript 执行时聊天框还在关闭流程里，
      * 同步 setScreen 会被聊天框的 close() 顶掉（设置打不开），所以推迟到下一 tick 再开。
      */
-    private static boolean openSettingsNext;
-    private static boolean openEditorNext;
+    private static SkyScriptScreen.Tab openPanelTab;
 
     @Override
     public void onInitializeClient() {
@@ -72,12 +69,9 @@ public class SkyScriptClient implements ClientModInitializer {
 
     private static void registerKeyBindings() {
         String master = SkyScriptConfig.get().masterKeyName;
-        String editor = SkyScriptConfig.get().editorKeyName;
         String settings = SkyScriptConfig.get().settingsKeyName;
         masterKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.sky_script.master", InputUtil.Type.KEYSYM, keyOf(master, GLFW.GLFW_KEY_F8), CATEGORY));
-        editorKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.sky_script.open_editor", InputUtil.Type.KEYSYM, keyOf(editor, GLFW.GLFW_KEY_H), CATEGORY));
         settingsKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.sky_script.open_settings", InputUtil.Type.KEYSYM, keyOf(settings, GLFW.GLFW_KEY_O), CATEGORY));
     }
@@ -90,18 +84,18 @@ public class SkyScriptClient implements ClientModInitializer {
     private static void registerCommands() {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
             dispatcher.register(literal("skyscript")
-                    .executes(ctx -> { // /skyscript → 设置界面
-                        Feedback.notify("§7[SkyScript] §f打开设置…（也可按 §eO§f）");
-                        openSettingsNext = true;
+                    .executes(ctx -> { // /skyscript → 控制台
+                        Feedback.notify("§7[SkyScript] §f打开控制台…（也可按 §eO§f）");
+                        openPanelTab = SkyScriptScreen.Tab.MAIN;
                         return 1;
                     })
-                    .then(literal("editor").executes(ctx -> { // /skyscript editor → 方案编辑
-                        Feedback.notify("§7[SkyScript] §f打开方案编辑…（也可按 §eH§f）");
-                        openEditorNext = true;
+                    .then(literal("editor").executes(ctx -> { // /skyscript editor → 脚本页
+                        Feedback.notify("§7[SkyScript] §f打开控制台·脚本…（也可按 §eO§f 后选「脚本」）");
+                        openPanelTab = SkyScriptScreen.Tab.SCRIPTS;
                         return 1;
                     }))
                     .then(literal("help").executes(ctx -> {
-                        Feedback.notify("§a[SkyScript] §f命令: §e/skyscript§f 设置 · §e/skyscript editor§f 方案编辑 · §e/skyscript help§f 帮助 · 快捷键 §eO§f 设置 / §eH§f 方案编辑 / §eF8§f 总控");
+                        Feedback.notify("§a[SkyScript] §f命令: §e/skyscript§f 控制台 · §e/skyscript editor§f 脚本页 · 快捷键 §eO§f 控制台 / §eF8§f 总控");
                         return 1;
                     })));
         });
@@ -109,22 +103,16 @@ public class SkyScriptClient implements ClientModInitializer {
 
     private static void onTick(MinecraftClient client) {
         // 处理命令里推迟打开界面（等待聊天框关闭完成，避免被顶掉）
-        if (openSettingsNext && client.currentScreen == null) {
-            openSettingsNext = false;
-            client.setScreen(new SettingsScreen());
-        }
-        if (openEditorNext && client.currentScreen == null) {
-            openEditorNext = false;
-            client.setScreen(new ScriptListScreen());
+        if (openPanelTab != null && client.currentScreen == null) {
+            SkyScriptScreen.Tab t = openPanelTab;
+            openPanelTab = null;
+            client.setScreen(new SkyScriptScreen(t));
         }
         if (wasActivated(client, masterKey, SkyScriptConfig.get().masterKeyName)) {
             MasterController.onMasterPressed();
         }
-        if (wasActivated(client, editorKey, SkyScriptConfig.get().editorKeyName) && client.currentScreen == null) {
-            client.setScreen(new ScriptListScreen());
-        }
         if (wasActivated(client, settingsKey, SkyScriptConfig.get().settingsKeyName) && client.currentScreen == null) {
-            client.setScreen(new SettingsScreen());
+            client.setScreen(new SkyScriptScreen());
         }
         ScriptEngine.INSTANCE.tick(client);
     }

@@ -26,10 +26,7 @@ public class Settings {
     /** 总控键（默认 F8），轮询检测，可在设置里改名 */
     public String masterKeyName = "F8";
 
-    /** 编辑器键（默认 H），轮询检测，可在设置里改名 */
-    public String editorKeyName = "H";
-
-    /** 设置键（默认 O），打开设置界面，可在设置里改名 */
+    /** 控制台键（默认 O），轮询检测，打开整合控制台，可在设置里改名 */
     public String settingsKeyName = "O";
 
     /** 方向交换（诊断用兜底）：true 时 A/D 注入方向翻转 */
@@ -87,7 +84,6 @@ public class Settings {
         if (triggerKeys == null) triggerKeys = new ArrayList<>(List.of("A", "D"));
         if (activeScript == null) activeScript = "";
         if (masterKeyName == null) masterKeyName = "F8";
-        if (editorKeyName == null) editorKeyName = "H";
         if (settingsKeyName == null) settingsKeyName = "O";
         // directionSwap 是 boolean，无 null 问题，保持默认
         if (hud == null) hud = new HudSettings();
@@ -115,7 +111,6 @@ public class Settings {
         triggerKeys = new ArrayList<>(List.of("A", "D"));
         activeScript = "";
         masterKeyName = "F8";
-        editorKeyName = "H";
         settingsKeyName = "O";
         directionSwap = false;
         hud = new HudSettings();

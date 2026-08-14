@@ -1,6 +1,5 @@
 {
 	"key.sky_script.category": "SkyScript",
 	"key.sky_script.master": "Master Key (Script / Attack Mode / External Keys)",
-	"key.sky_script.open_editor": "Open Script Editor",
-	"key.sky_script.open_settings": "Open Settings"
+	"key.sky_script.open_settings": "Open Control Panel"
 }

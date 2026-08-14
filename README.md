@@ -22,23 +22,23 @@ SkyScript evolved from a simple AutoHotkey script (`AutoKey.ahk`) into a full in
 
 ## Quick Start
 
-1. In-game, run **`/skyscript`** (opens Settings) or press **H** (opens the script editor). With [Mod Menu](https://modrinth.com/mod/modmenu) installed, the "Settings" entry for SkyScript is also available from the mod list.
-2. In the script editor, select "New Script" — a default AHK-style A/D alternation template is generated (120 s per row, 0.5 s pause between rows).
-3. Press "Done" to save and return to the game.
+1. In-game, run **`/skyscript`** or press **O** (default) to open the **integrated control panel** — one screen with three tabs: **总控** (run / F8 master / keys), **HUD**, and **脚本** (create / edit / manage scripts, with drill-down step editing). With [Mod Menu](https://modrinth.com/mod/modmenu) installed, the "Settings" entry for SkyScript is also available from the mod list.
+2. In the **脚本** tab, select "新建方案" — a default AHK-style A/D alternation template is generated (120 s per row, 0.5 s pause between rows).
+3. Press "保存并返回" to save and return to the game.
 4. Press **F8** to enable the automation (master switch, like the original AHK's F8). This only *arms* it — the script does **not** start yet. Chat feedback confirms.
 5. **Click A or D** (short click, release edge) to start the active script. While running, click the *other* direction key to switch direction, or the current key to stop (configurable). Press **F8** again to stop everything and *disarm* — after that A/D are normal movement keys again and cannot accidentally restart the script until you press F8 again.
 
-> By default the automation is **off** when you join a world. If you want it armed automatically, enable **"进游戏自动开启"** in the settings screen. HUD shows **待命 (cyan)** when armed-but-idle.
+> By default the automation is **off** when you join a world. If you want it armed automatically, enable **"进游戏自动开启"** in the control panel. HUD shows **待命 (cyan)** when armed-but-idle.
 
 ## Entry Points and Key Bindings
 
 | Entry | Function |
 |---|---|
-| `/skyscript` | Open the **settings screen** (HUD position/template/scale, key semantics, trigger keys, F8 action toggles, external hotkeys, feedback toggle) |
-| `/skyscript editor` | Open the script editor |
+| `/skyscript` | Open the **integrated control panel** (总控 / HUD / 脚本 tabs) |
+| `/skyscript editor` | Open the control panel on the **脚本** tab |
 | `/skyscript help` | Show command help |
 | Mod Menu → SkyScript → Settings | Same as `/skyscript` (requires Mod Menu) |
-| H | Open the script editor (renamable in settings) |
+| O | Open the control panel (renamable in settings) |
 | F8 | **Master switch (arm/disarm)**: enables automation (script starts only when you click a trigger key, default A/D) and runs the linked actions (attack/destroy mode + external hotkeys + optional HUD). Pressing again stops and disarms everything. The key itself is renamable in settings |
 | A / D | Start the active script when armed and idle (release-edge trigger); switch direction / stop while running (configurable) |
 
