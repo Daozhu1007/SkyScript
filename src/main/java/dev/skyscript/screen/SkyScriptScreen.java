@@ -7,7 +7,11 @@ import dev.skyscript.input.KeyNames;
 import dev.skyscript.script.PosCond;
 import dev.skyscript.script.Script;
 import dev.skyscript.script.Step;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Drawable;
+import net.minecraft.client.gui.Element;
+import net.minecraft.client.gui.Selectable;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
@@ -52,9 +56,55 @@ public class SkyScriptScreen extends Screen {
 
     private Tab tab;
     private int scroll;
-    /** 渲染项：{y, text, isSection}，init 里构建，render 里逐帧画 */
-    private final List<Object[]> renderItems = new ArrayList<>();
     private int nextRow; // 行号游标（含区块标题行）
+
+    /**
+     * 标签控件：把文字当作可绘制控件走控件渲染路径。
+     * 实测在 render() 里直接 ctx.drawText 画不出文字，但控件(按钮)能显示文字，
+     * 所以所有标签都做成控件来保证可见。
+     */
+    private static final class LabelDrawable implements Element, Drawable, Selectable {
+        private final Text text;
+        private final int x, y;
+        private final int color;
+        private final boolean bar; // 是否画深色底（列表行用）
+
+        LabelDrawable(String text, int x, int y, int color, boolean bar) {
+            this.text = Text.literal(text);
+            this.x = x;
+            this.y = y;
+            this.color = color;
+            this.bar = bar;
+        }
+
+        @Override
+        public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
+            if (bar) {
+                int w = MinecraftClient.getInstance().getWindow().getScaledWidth();
+                ctx.fill(x - 4, y - 2, w - 250, y + 16, 0x65000000);
+            }
+            ctx.drawText(MinecraftClient.getInstance().textRenderer, text, x, y, color, true);
+        }
+
+        // ---- Element / Selectable 的 no-op（纯显示控件，不参与交互/焦点/旁白） ----
+        @Override
+        public void setFocused(boolean focused) {
+        }
+
+        @Override
+        public boolean isFocused() {
+            return false;
+        }
+
+        @Override
+        public Selectable.SelectionType getType() {
+            return Selectable.SelectionType.NONE;
+        }
+
+        @Override
+        public void appendNarrations(net.minecraft.client.gui.screen.narration.NarrationMessageBuilder builder) {
+        }
+    }
 
     // ---- 设置编辑副本 ----
     private boolean hudEnabled, hudSilent, hudBackground;
@@ -179,6 +229,18 @@ public class SkyScriptScreen extends Screen {
         return y >= TOP - 8 && y <= this.height - 44;
     }
 
+    /** 加一个标签控件（flag: 1=区块标题金 / 2=灰色提示 / 3=深色底列表行 / 0=普通白字） */
+    private void rowLabel(String text, int y, int flag) {
+        if (!visible(y)) return;
+        int color = switch (flag) {
+            case 1 -> 0xFFD67E;
+            case 2 -> 0xAAAAAA;
+            case 3 -> 0xFFFFFF;
+            default -> 0xFFFFFF;
+        };
+        addDrawableChild(new LabelDrawable(text, LABEL_X, y, color, flag == 3));
+    }
+
     private int ctrlX() {
         return CONTENT_X + 150;
     }
@@ -190,18 +252,18 @@ public class SkyScriptScreen extends Screen {
     /** 区块标题 */
     private void addSection(String text) {
         int y = yOf(nextRow++);
-        renderItems.add(new Object[]{y, "§e§l" + text, 1});
+        rowLabel(text, y, 1);
     }
 
     /** 纯文字行（列表项等） */
-    private void addLabel(String text, int color) {
+    private void addLabel(String text, int ignoredColor) {
         int y = yOf(nextRow++);
-        renderItems.add(new Object[]{y, text, color});
+        rowLabel(text, y, 0);
     }
 
     private void toggleRow(String label, boolean value, Consumer<Boolean> on) {
         int y = yOf(nextRow++);
-        renderItems.add(new Object[]{y, label, 0});
+        rowLabel(label, y, 0);
         if (!visible(y)) return;
         addDrawableChild(ButtonWidget.builder(Text.literal(value ? "§a开" : "§c关"), b -> on.accept(!value))
                 .dimensions(ctrlX(), y, 60, 20).build());
@@ -209,7 +271,7 @@ public class SkyScriptScreen extends Screen {
 
     private void cycleRow(String label, String value, String[][] map, Consumer<String> on) {
         int y = yOf(nextRow++);
-        renderItems.add(new Object[]{y, label, 0});
+        rowLabel(label, y, 0);
         if (!visible(y)) return;
         int idx = 0;
         for (int i = 0; i < map.length; i++) {
@@ -222,7 +284,7 @@ public class SkyScriptScreen extends Screen {
 
     private void textRow(String label, String initial, Consumer<String> on, String hint) {
         int y = yOf(nextRow++);
-        renderItems.add(new Object[]{y, label, 0});
+        rowLabel(label, y, 0);
         if (visible(y)) {
             TextFieldWidget tf = new TextFieldWidget(this.textRenderer, ctrlX(), y, ctrlW(), 20, Text.literal(""));
             tf.setMaxLength(200);
@@ -232,7 +294,7 @@ public class SkyScriptScreen extends Screen {
         }
         if (hint != null) {
             int hy = yOf(nextRow++);
-            renderItems.add(new Object[]{hy, hint, 2});
+            rowLabel(hint, hy, 2);
         }
     }
 
@@ -274,8 +336,8 @@ public class SkyScriptScreen extends Screen {
             close();
         }).dimensions(6, h - 40, SIDEBAR_W - 12, 20).build());
 
-        renderItems.clear();
         nextRow = 0;
+        addDrawableChild(new LabelDrawable("SkyScript 控制台", 6, 6, 0xFFFFFF, false));
         switch (tab) {
             case MAIN -> buildMainTab();
             case HUD -> buildHudTab();
@@ -379,8 +441,7 @@ public class SkyScriptScreen extends Screen {
             boolean isActive = s.name.equals(activeScriptName());
             // 第 1 行：名字 + 循环 + 操作区
             int y = yOf(nextRow++);
-            renderItems.add(new Object[]{y,
-                    (isActive ? "§a▶ " : "  ") + s.name + "   §7" + (s.loop == 0 ? "无限循环" : "×" + s.loop + " 轮"), 3});
+            rowLabel((isActive ? "§a▶ " : "  ") + s.name + "   §7" + (s.loop == 0 ? "无限循环" : "×" + s.loop + " 轮"), y, 3);
             if (visible(y)) {
                 addDrawableChild(zoneBtn(zoneStart, y, 0, isActive ? "§a活动" : "活动",
                         b -> { SkyScriptConfig.get().activeScript = s.name; SkyScriptConfig.save(); refresh(); }));
@@ -400,7 +461,7 @@ public class SkyScriptScreen extends Screen {
             }
             // 第 2 行：整份方案的人话描述
             int y2 = yOf(nextRow++);
-            renderItems.add(new Object[]{y2, "§7" + s.describe(), 3});
+            rowLabel("§7" + s.describe(), y2, 3);
         }
         if (scripts.isEmpty()) {
             addLabel("还没有方案，点「新建空方案」从零开始，或用「农田向导」", 0xFFFFFF);
@@ -526,7 +587,7 @@ public class SkyScriptScreen extends Screen {
             final int idx = i;
             Step st = steps.get(i);
             int y = yOf(nextRow++);
-            renderItems.add(new Object[]{y, (i + 1) + ". " + st.summary(), 3});
+            rowLabel((i + 1) + ". " + st.summary(), y, 3);
             if (!visible(y)) continue;
             int col = 0;
             if (i > 0) addDrawableChild(zoneBtn(zoneStart, y, col++, "↑", b -> moveStep(steps, idx, idx - 1)));
@@ -598,11 +659,19 @@ public class SkyScriptScreen extends Screen {
         switch (st.type) {
             case "hold", "press" -> {
                 addSection("按键");
-                addLabel("当前按键: " + (st.keys.isEmpty() ? "（未设）" : st.keys.toString()), 3);
-                addDrawableChild(ButtonWidget.builder(Text.literal(capturing ? "按任意键录入… (ESC 取消)" : "录制按键"), b -> { capturing = true; refresh(); })
-                        .dimensions(LABEL_X, yOf(nextRow++), 180, 20).build());
-                addDrawableChild(ButtonWidget.builder(Text.literal("清除按键"), b -> { st.keys.clear(); refresh(); })
-                        .dimensions(LABEL_X + 186, yOf(nextRow - 1), 90, 20).build());
+                // MC 原生式绑键按钮：点击进入"等待按键"，按任意键直接绑定，反馈就在按钮上
+                String keyText = capturing
+                        ? "§e> 按任意键… (ESC 取消)"
+                        : (st.keys.isEmpty() ? "按键：未设置" : "按键：" + String.join(" + ", st.keys));
+                addDrawableChild(ButtonWidget.builder(Text.literal(keyText), b -> {
+                    capturing = !capturing;
+                    if (capturing) drainPressedQueue(); // 清掉进入录制前的残留按键，避免闪一下就绑定
+                    refresh();
+                }).dimensions(LABEL_X, yOf(nextRow++), 270, 20).build());
+                if (!st.keys.isEmpty()) {
+                    addDrawableChild(ButtonWidget.builder(Text.literal("清除"), b -> { st.keys.clear(); refresh(); })
+                            .dimensions(LABEL_X + 276, yOf(nextRow - 1), 60, 20).build());
+                }
                 // 只有"长按"才需要结束条件；点按是一次性按下
                 if ("hold".equals(st.type) || "hold".equals(st.mode)) {
                     addUntilButton(st);
@@ -768,7 +837,7 @@ public class SkyScriptScreen extends Screen {
     /** 一行坐标轴：轴名 + 比较符按钮 + 值输入框 */
     private void posAxisRow(String axis, String op, String val, Consumer<String> onOp, Consumer<String> onVal) {
         int y = yOf(nextRow++);
-        renderItems.add(new Object[]{y, axis, 0});
+        rowLabel(axis, y, 0);
         if (!visible(y)) return;
         String[] displays = displayOf(POS_OPS);
         String cur = curDisplay(POS_OPS, op);
@@ -799,25 +868,9 @@ public class SkyScriptScreen extends Screen {
 
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
+        // 所有文字都走 LabelDrawable 控件（在 super.render 里随控件一起画），
+        // 不再在此手绘 drawText（实测手绘文字渲染不出来）。
         super.render(ctx, mouseX, mouseY, delta);
-        ctx.drawText(this.textRenderer, Text.literal("SkyScript 控制台"), 6, 6, 0xFFFFFF, true);
-        for (Object[] item : renderItems) {
-            int y = (int) item[0];
-            if (y < TOP - 12 || y > this.height - 44) continue;
-            String text = (String) item[1];
-            int flag = (int) item[2];
-            if (flag == 1) {
-                ctx.drawText(this.textRenderer, Text.literal(text), LABEL_X, y, 0xFFD67E, true);
-            } else if (flag == 2) {
-                ctx.drawText(this.textRenderer, Text.literal(text), LABEL_X, y, 0xAAAAAA, true);
-            } else if (flag == 3) {
-                // 列表行：深色底 + 白字，保证人话文字一眼可读
-                ctx.fill(LABEL_X - 4, y - 2, this.width - 250, y + 16, 0x65000000);
-                ctx.drawText(this.textRenderer, Text.literal(text), LABEL_X, y, 0xFFFFFF, true);
-            } else {
-                ctx.drawText(this.textRenderer, Text.literal(text), LABEL_X, y, 0xFFFFFF, true);
-            }
-        }
     }
 
     @Override
@@ -854,6 +907,12 @@ public class SkyScriptScreen extends Screen {
         if (!editingStep.keys.contains(name)) editingStep.keys.add(name);
         capturing = false;
         refresh();
+    }
+
+    /** 清空按键队列（进入录制前调用，避免残留按键被立即绑定） */
+    private void drainPressedQueue() {
+        while (KeyEvents.pollPressed() != null) {
+        }
     }
 
     @Override
