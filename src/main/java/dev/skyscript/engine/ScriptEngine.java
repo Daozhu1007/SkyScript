@@ -352,7 +352,14 @@ public final class ScriptEngine {
 
     // ---------- 触发键 ----------
 
+    /** 进入世界时重置触发键历史状态，防止跨世界残留误触发 */
+    public void resetTriggers() {
+        prevTrigger.clear();
+    }
+
     private void pollTriggers(MinecraftClient client) {
+        // 打开界面时不响应触发键（冻结期间保持静默）
+        if (client.currentScreen != null) return;
         List<String> triggers = SkyScriptConfig.get().triggerKeys;
         if (triggers == null || triggers.isEmpty()) return;
         var win = client.getWindow();
@@ -367,7 +374,8 @@ public final class ScriptEngine {
             }
             boolean prev = prevTrigger.get(name);
             prevTrigger.put(name, pressed);
-            if (pressed || prev) continue; // 需要"按下 → 抬起"沿
+            // 仅在"按下 → 抬起"沿触发：prev=true 且 pressed=false
+            if (!(prev && !pressed)) continue;
 
             if (!running) {
                 Script active = SkyScriptConfig.getActiveScript();

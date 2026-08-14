@@ -43,8 +43,21 @@ public class SkyScriptClient implements ClientModInitializer {
 
         ClientTickEvents.END_CLIENT_TICK.register(SkyScriptClient::onTick);
         HudRenderCallback.EVENT.register(ScriptHud::render);
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> ScriptEngine.INSTANCE.stop());
-        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> ScriptEngine.INSTANCE.stop());
+        // 断线/退出：停止引擎
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            ScriptEngine.INSTANCE.stop();
+            ScriptEngine.INSTANCE.resetTriggers();
+        });
+        // 进入世界：重置所有按键历史状态，防止跨世界残留导致误触发
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            ScriptEngine.INSTANCE.stop();
+            ScriptEngine.INSTANCE.resetTriggers();
+            prevKeyStates.clear();
+        });
+        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+            ScriptEngine.INSTANCE.stop();
+            ScriptEngine.INSTANCE.resetTriggers();
+        });
     }
 
     private static void registerKeyBindings() {
@@ -92,7 +105,11 @@ public class SkyScriptClient implements ClientModInitializer {
     /**
      * 双通道检测：KeyBinding.wasPressed() + GLFW 轮询按下沿。
      * 1.21.11 输入重构后 KeyBinding 的按下状态时序不可靠，轮询通道保证按键必响应。
+     * 按下沿带 80ms 防抖，避免异常抖动重复触发。
      */
+    private static final long KEY_DEBOUNCE_MS = 80;
+    private static final Map<String, Long> lastKeyFire = new HashMap<>();
+
     private static boolean wasActivated(MinecraftClient client, KeyBinding binding, String configKey) {
         boolean pressed = false;
         Integer code = KeyNames.glfwOf(configKey);
@@ -102,6 +119,13 @@ public class SkyScriptClient implements ClientModInitializer {
         boolean prev = prevKeyStates.getOrDefault(configKey, false);
         prevKeyStates.put(configKey, pressed);
         boolean edge = pressed && !prev;
-        return edge || (binding != null && binding.wasPressed());
+        if (edge || (binding != null && binding.wasPressed())) {
+            long now = System.currentTimeMillis();
+            Long last = lastKeyFire.get(configKey);
+            if (last != null && now - last < KEY_DEBOUNCE_MS) return false;
+            lastKeyFire.put(configKey, now);
+            return true;
+        }
+        return false;
     }
 }
