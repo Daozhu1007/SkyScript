@@ -3,8 +3,7 @@ package dev.skyscript.screen;
 import dev.skyscript.config.SkyScriptConfig;
 import dev.skyscript.script.Script;
 import net.minecraft.client.gui.Click;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.DrawContext;import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 
@@ -41,6 +40,8 @@ public class ScriptListScreen extends Screen {
             SkyScriptConfig.saveScript(s);
             refresh();
         }).dimensions(w - 300, h - 30, 90, 20).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("设置"), b -> this.client.setScreen(new SettingsScreen()))
+                .dimensions(12, h - 30, 70, 20).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("完成"), b -> close())
                 .dimensions(w - 90, h - 30, 70, 20).build());
         int max = Math.max(0, scripts.size() * ROW_H - (h - 60));

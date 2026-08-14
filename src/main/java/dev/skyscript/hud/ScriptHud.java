@@ -13,6 +13,7 @@ import org.joml.Matrix3x2fStack;
 /**
  * Lunar 风格 HUD：模板文本 + 占位符，可调位置/缩放/背景，支持静默模式。
  * 占位符：{state} {script} {step} {col} {total} {timeLeft} {attackMode}
+ * 整行颜色随状态变化：运行=绿 / 暂停=黄 / 空闲=灰，一眼可见。
  */
 public final class ScriptHud {
 
@@ -26,6 +27,7 @@ public final class ScriptHud {
         if (c.player == null || c.world == null) return;
 
         String text = format(h.template);
+        if (text == null || text.isEmpty()) return;
         TextRenderer tr = c.textRenderer;
         int textW = tr.getWidth(text);
         int textH = tr.fontHeight;
@@ -54,8 +56,16 @@ public final class ScriptHud {
         if (h.background) {
             ctx.fill(sx - 2, sy - 2, sx + textW + 2, sy + textH + 2, 0x80000000);
         }
-        ctx.drawText(tr, text, sx, sy, 0xFFFFFFFF, true);
+        ctx.drawText(tr, text, sx, sy, stateColor(ScriptEngine.INSTANCE.getStateText()), true);
         ms.popMatrix();
+    }
+
+    private static int stateColor(String state) {
+        return switch (state) {
+            case "运行" -> 0xFF55FF55;
+            case "暂停" -> 0xFFFFFF55;
+            default -> 0xFFAAAAAA;
+        };
     }
 
     static String format(String template) {

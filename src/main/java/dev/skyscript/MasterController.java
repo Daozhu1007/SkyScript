@@ -10,8 +10,9 @@ import dev.skyscript.script.Script;
 import net.minecraft.client.MinecraftClient;
 
 /**
- * F8 总控：一键执行联动动作序列（每项可在 settings.json 里开关）——
+ * F8 总控：一键执行联动动作序列（每项可在设置里开关）——
  * 1. 脚本启停  2. 攻击/摧毁模式切换（配合左键锁定/解锁）  3. 外部热键触发（如锁定鼠标）  4. HUD 开关
+ * 启动/停止都会发送聊天反馈（可在设置关闭）。
  */
 public final class MasterController {
 
@@ -29,10 +30,19 @@ public final class MasterController {
         if (m.toggleScript) {
             if (wasRunning) {
                 ScriptEngine.INSTANCE.stop();
+                Feedback.notify("§c[SkyScript] §f已停止");
             } else {
                 Script s = SkyScriptConfig.getActiveScript();
-                if (s != null) ScriptEngine.INSTANCE.start(s);
+                if (s == null) {
+                    Feedback.notify("§6[SkyScript] §f没有可用方案，按 §eH §f或输入 §e/skyscript editor§f 配置");
+                } else {
+                    ScriptEngine.INSTANCE.start(s);
+                    Feedback.notify("§a[SkyScript] §f已启动: §e" + s.name);
+                }
             }
+        } else if (wasRunning) {
+            ScriptEngine.INSTANCE.stop();
+            Feedback.notify("§c[SkyScript] §f已停止");
         }
 
         // 2. 攻击/摧毁模式
@@ -40,6 +50,8 @@ public final class MasterController {
             if (!wasRunning) {
                 if (AttackModeHelper.setToggle(true)) {
                     KeySimulator.tapMouseLeft(); // 切换模式下点一下锁定持续攻击
+                } else {
+                    Feedback.notify("§6[SkyScript] §f未找到攻击/摧毁选项（当前版本可能不支持）");
                 }
             } else {
                 if (AttackModeHelper.isToggle()) {
@@ -65,6 +77,9 @@ public final class MasterController {
         if (m.toggleHud) {
             SkyScriptConfig.get().hud.enabled = !SkyScriptConfig.get().hud.enabled;
             SkyScriptConfig.save();
+            Feedback.notify(SkyScriptConfig.get().hud.enabled
+                    ? "§7[SkyScript] §fHUD 显示: §a开"
+                    : "§7[SkyScript] §fHUD 显示: §c关");
         }
     }
 }
