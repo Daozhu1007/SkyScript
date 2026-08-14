@@ -31,6 +31,8 @@ public final class MasterController {
         if (m.toggleScript) {
             if (!wasArmed) {
                 ScriptEngine.INSTANCE.setArmed(true);
+                // 清掉武装前残留的 A/D 点击事件，避免"按 F8 自己就开始跑"
+                ScriptEngine.INSTANCE.resetTriggers();
                 Script s = SkyScriptConfig.getActiveScript();
                 Feedback.notify(s == null
                         ? "§a[SkyScript] §f已开启: 按触发键(默认 §eA/D§f)开始"

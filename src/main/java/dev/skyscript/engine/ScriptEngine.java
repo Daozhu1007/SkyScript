@@ -424,9 +424,14 @@ public final class ScriptEngine {
                     Feedback.notify("§6[SkyScript] §f没有活动方案: 按 §eH §f或 §e/skyscript editor§f 选「活动」");
                     continue;
                 }
-                if (KeyNames.isLateralKey(name)) lateralBias = name;
+                // 先记录触发键，再 start()（start 内部调 stop() 会把 lateralBias 重置回 "A"，
+                // 所以必须在 start 之后重新设置 bias 再重映射，否则"按 D 启动却往左走"）
+                String startKey = KeyNames.isLateralKey(name) ? name : null;
                 start(active);
-                if (KeyNames.isLateralKey(name)) applyLateralBias(lateralBias);
+                if (startKey != null) {
+                    lateralBias = startKey;
+                    applyLateralBias(startKey);
+                }
                 Feedback.notify("§a[SkyScript] §f触发启动: §e" + active.name + " §7(从 " + name + " 开始)");
                 diagnosticStart();
             } else {

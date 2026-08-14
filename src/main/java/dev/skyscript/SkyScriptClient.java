@@ -36,6 +36,13 @@ public class SkyScriptClient implements ClientModInitializer {
     /** 轮询按下沿检测用的历史状态（键名 → 上一帧是否按下） */
     private static final Map<String, Boolean> prevKeyStates = new HashMap<>();
 
+    /**
+     * 命令里延迟打开界面的标志：/skyscript 执行时聊天框还在关闭流程里，
+     * 同步 setScreen 会被聊天框的 close() 顶掉（设置打不开），所以推迟到下一 tick 再开。
+     */
+    private static boolean openSettingsNext;
+    private static boolean openEditorNext;
+
     @Override
     public void onInitializeClient() {
         SkyScriptConfig.load();
@@ -85,12 +92,12 @@ public class SkyScriptClient implements ClientModInitializer {
             dispatcher.register(literal("skyscript")
                     .executes(ctx -> { // /skyscript → 设置界面
                         Feedback.notify("§7[SkyScript] §f打开设置…（也可按 §eO§f）");
-                        ctx.getSource().getClient().setScreen(new SettingsScreen());
+                        openSettingsNext = true;
                         return 1;
                     })
                     .then(literal("editor").executes(ctx -> { // /skyscript editor → 方案编辑
                         Feedback.notify("§7[SkyScript] §f打开方案编辑…（也可按 §eH§f）");
-                        ctx.getSource().getClient().setScreen(new ScriptListScreen());
+                        openEditorNext = true;
                         return 1;
                     }))
                     .then(literal("help").executes(ctx -> {
@@ -101,6 +108,15 @@ public class SkyScriptClient implements ClientModInitializer {
     }
 
     private static void onTick(MinecraftClient client) {
+        // 处理命令里推迟打开界面（等待聊天框关闭完成，避免被顶掉）
+        if (openSettingsNext && client.currentScreen == null) {
+            openSettingsNext = false;
+            client.setScreen(new SettingsScreen());
+        }
+        if (openEditorNext && client.currentScreen == null) {
+            openEditorNext = false;
+            client.setScreen(new ScriptListScreen());
+        }
         if (wasActivated(client, masterKey, SkyScriptConfig.get().masterKeyName)) {
             MasterController.onMasterPressed();
         }
