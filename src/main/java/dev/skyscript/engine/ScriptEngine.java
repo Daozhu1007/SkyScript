@@ -418,8 +418,20 @@ public final class ScriptEngine {
         if (!armed) return;
         // 打开界面时不响应触发键（冻结期间保持静默）
         if (client.currentScreen != null) return;
-        List<String> triggers = SkyScriptConfig.get().triggerKeys;
-        if (triggers == null || triggers.isEmpty()) return;
+        List<String> manual = SkyScriptConfig.get().triggerKeys;
+        List<String> triggers;
+        if (manual != null && !manual.isEmpty()) {
+            triggers = manual;
+        } else {
+            // 自动：活动方案第一个动作的按键就是启动键（用户首个键是 W 就按 W 启动）
+            Script active = SkyScriptConfig.getActiveScript();
+            triggers = new ArrayList<>();
+            if (active != null && active.steps != null && !active.steps.isEmpty()) {
+                String k = firstKeyOf(active.steps.get(0));
+                if (k != null) triggers.add(k);
+            }
+            if (triggers.isEmpty()) return;
+        }
         KeyEvents.cleanup();
         for (String name : triggers) {
             Integer code = KeyNames.glfwOf(name);
@@ -430,7 +442,11 @@ public final class ScriptEngine {
             if (!running) {
                 Script active = SkyScriptConfig.getActiveScript();
                 if (active == null) {
-                    Feedback.notify("§6[SkyScript] §f没有活动方案: 按 §eH §f或 §e/skyscript editor§f 选「活动」");
+                    Feedback.notify("§6[SkyScript] §f没有活动方案: 按 §eO§f 选「活动」");
+                    continue;
+                }
+                if (active.steps == null || active.steps.isEmpty()) {
+                    Feedback.notify("§6[SkyScript] §f这个方案还没有动作，先编辑加动作");
                     continue;
                 }
                 // 先记录触发键，再 start()（start 内部调 stop() 会把 lateralBias 重置回 "A"，
@@ -441,12 +457,21 @@ public final class ScriptEngine {
                     lateralBias = startKey;
                     applyLateralBias(startKey);
                 }
-                Feedback.notify("§a[SkyScript] §f触发启动: §e" + active.name + " §7(从 " + name + " 开始)");
+                Feedback.notify("§a[SkyScript] §f触发启动: §e" + active.name + " §7(按 " + name + " 开始)");
                 diagnosticStart();
             } else {
                 handleRunTrigger(name);
             }
         }
+    }
+
+    /** 取动作的第一个有效按键（hold/press 的首键） */
+    private static String firstKeyOf(Step s) {
+        if (s == null || s.keys == null) return null;
+        for (String k : s.keys) {
+            if (k != null && !k.isEmpty()) return k;
+        }
+        return null;
     }
 
     private void handleRunTrigger(String name) {

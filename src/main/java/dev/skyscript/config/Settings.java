@@ -17,8 +17,8 @@ public class Settings {
     /** 运行中按另一个方向键：switch=切换方向 */
     public String otherKeySemantics = "switch";
 
-    /** 空闲时按下可启动脚本的键（抬起触发） */
-    public List<String> triggerKeys = new ArrayList<>(List.of("A", "D"));
+    /** 触发键（点击启动）；空列表 = 自动用"活动方案第一个动作的按键" */
+    public List<String> triggerKeys = new ArrayList<>();
 
     /** 活动方案名（F8 启动 / 触发键启动时运行它） */
     public String activeScript = "";
@@ -83,7 +83,7 @@ public class Settings {
     public void applyDefaults() {
         if (currentKeySemantics == null) currentKeySemantics = "stop";
         if (otherKeySemantics == null) otherKeySemantics = "switch";
-        if (triggerKeys == null) triggerKeys = new ArrayList<>(List.of("A", "D"));
+        if (triggerKeys == null) triggerKeys = new ArrayList<>();
         if (activeScript == null) activeScript = "";
         if (masterKeyName == null) masterKeyName = "F8";
         if (settingsKeyName == null) settingsKeyName = "O";
@@ -103,14 +103,21 @@ public class Settings {
             if ("ignore".equals(currentKeySemantics)) currentKeySemantics = "stop";
             version = 2;
         }
+        // v3 迁移：触发键默认改为"自动=活动方案第一个动作的按键"，清掉旧版写死的 A/D
+        if (version < 3) {
+            if (triggerKeys != null && triggerKeys.equals(List.of("A", "D"))) {
+                triggerKeys = new ArrayList<>();
+            }
+            version = 3;
+        }
     }
 
     /** 恢复出厂默认（仅内存，点保存后落盘） */
     public void resetToDefaults() {
-        version = 2;
+        version = 3;
         currentKeySemantics = "stop";
         otherKeySemantics = "switch";
-        triggerKeys = new ArrayList<>(List.of("A", "D"));
+        triggerKeys = new ArrayList<>();
         activeScript = "";
         masterKeyName = "F8";
         settingsKeyName = "O";

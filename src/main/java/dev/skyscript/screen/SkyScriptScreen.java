@@ -397,7 +397,7 @@ public class SkyScriptScreen extends Screen {
         addSection("运行");
         toggleRow("进游戏自动开启", mArmedOnJoin, v -> { mArmedOnJoin = v; refresh(); });
         toggleRow("F8 开启时直接启动脚本", mStartOnArm, v -> { mStartOnArm = v; refresh(); });
-        textRow("触发键（点击启动）", triggerKeys, v -> triggerKeys = v, "空则仅用 F8 启动；想用某个键启动就填它");
+        textRow("触发键（点击启动）", triggerKeys, v -> triggerKeys = v, "留空=自动用脚本第一个键启动；也可填固定键");
         cycleRow("运行中再按当前方向键", curKeySem, SEM, v -> { curKeySem = v; refresh(); });
         addSection("F8 联动");
         toggleRow("启动 / 停止脚本", mToggleScript, v -> { mToggleScript = v; refresh(); });
@@ -626,6 +626,23 @@ public class SkyScriptScreen extends Screen {
             nameF.setChangedListener(v -> editingScript.name = v.trim());
             addDrawableChild(nameF);
         }
+        // 整份循环（脚本级 loop：0=无限）
+        int loopY = yOf(nextRow++);
+        rowLabel("整份循环次数（0 = 一直循环）", loopY, 0);
+        if (visible(loopY)) {
+            TextFieldWidget loopF = new TextFieldWidget(this.textRenderer, ctrlX(), loopY, 70, 20, Text.literal("次数"));
+            loopF.setMaxLength(5);
+            loopF.setText(String.valueOf(editingScript.loop));
+            loopF.setChangedListener(v -> {
+                try {
+                    editingScript.loop = Math.max(0, Integer.parseInt(v.trim()));
+                } catch (Exception ignored) {
+                }
+            });
+            addDrawableChild(loopF);
+        }
+        int loopHintY = yOf(nextRow++);
+        rowLabel("整份循环 = 从第 1 步跑到最后一步算一轮，然后自动重头再来（0 表示一直循环）", loopHintY, 2);
         // 添加动作 / 返回
         addDrawableChild(ButtonWidget.builder(Text.literal("添加动作"), b -> {
             Step step = new Step();
@@ -775,6 +792,7 @@ public class SkyScriptScreen extends Screen {
             refresh();
         }).dimensions(CONTENT_X, this.height - 34, 90, 20).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("返回"), b -> {
+            applyStepFields(st); // 返回也应用表单，避免改了坐标却被丢弃
             editingStep = null;
             refresh();
         }).dimensions(CONTENT_X + 96, this.height - 34, 90, 20).build());
@@ -1043,6 +1061,6 @@ public class SkyScriptScreen extends Screen {
             String k = part.trim().toUpperCase();
             if (!k.isEmpty() && !out.contains(k)) out.add(k);
         }
-        return out.isEmpty() ? new ArrayList<>(List.of("A", "D")) : out;
+        return out; // 空 = 自动用脚本第一个键启动
     }
 }
