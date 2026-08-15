@@ -423,12 +423,11 @@ public final class ScriptEngine {
         if (manual != null && !manual.isEmpty()) {
             triggers = manual;
         } else {
-            // 自动：活动方案第一个动作的按键就是启动键（用户首个键是 W 就按 W 启动）
+            // 自动：活动方案里用到的所有按键都能启动（首步是 W 就按 W，A/D 交替就 A、D 都能按）
             Script active = SkyScriptConfig.getActiveScript();
             triggers = new ArrayList<>();
-            if (active != null && active.steps != null && !active.steps.isEmpty()) {
-                String k = firstKeyOf(active.steps.get(0));
-                if (k != null) triggers.add(k);
+            if (active != null && active.steps != null) {
+                collectKeys(active.steps, triggers);
             }
             if (triggers.isEmpty()) return;
         }
@@ -462,6 +461,20 @@ public final class ScriptEngine {
             } else {
                 handleRunTrigger(name);
             }
+        }
+    }
+
+    /** 收集方案里用到的所有按键（含循环体），去重 */
+    private static void collectKeys(List<Step> steps, List<String> out) {
+        if (steps == null) return;
+        for (Step s : steps) {
+            if (s == null) continue;
+            if (s.keys != null) {
+                for (String k : s.keys) {
+                    if (k != null && !k.isEmpty() && !out.contains(k)) out.add(k);
+                }
+            }
+            if ("loop".equals(s.type) && s.body != null) collectKeys(s.body, out);
         }
     }
 

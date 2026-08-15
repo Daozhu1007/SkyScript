@@ -887,32 +887,33 @@ public class SkyScriptScreen extends Screen {
     }
 
     private static void addAxisCond(List<PosCond> conds, String axis, String op, String val) {
-        if (op == null || "ignore".equals(op)) return;
+        if (op == null || "ignore".equals(op) || "忽略".equals(op)) return;
         try {
             conds.add(new PosCond(axis, op, Double.parseDouble(val.trim())));
         } catch (Exception ignored) {
         }
     }
 
-    /** 打开表单时从步骤现有坐标条件填充 X/Y/Z */
+    /** 打开表单时从步骤现有坐标条件填充 X/Y/Z（兼容旧版中文"忽略"→归一到 "ignore"） */
     private void loadPosForm(List<PosCond> conds) {
         resetPosForm();
         if (conds != null) {
             for (PosCond pc : conds) {
                 if (pc == null) continue;
+                String op = "忽略".equals(pc.op) ? "ignore" : pc.op;
                 switch (pc.axis == null ? "x" : pc.axis) {
-                    case "y" -> { posOpY = pc.op; posValY = fmtNum(pc.value); }
-                    case "z" -> { posOpZ = pc.op; posValZ = fmtNum(pc.value); }
-                    default -> { posOpX = pc.op; posValX = fmtNum(pc.value); }
+                    case "y" -> { posOpY = op; posValY = fmtNum(pc.value); }
+                    case "z" -> { posOpZ = op; posValZ = fmtNum(pc.value); }
+                    default -> { posOpX = op; posValX = fmtNum(pc.value); }
                 }
             }
         }
     }
 
     private void resetPosForm() {
-        posOpX = "忽略"; posValX = "0";
-        posOpY = "忽略"; posValY = "0";
-        posOpZ = "忽略"; posValZ = "0";
+        posOpX = "ignore"; posValX = "0";
+        posOpY = "ignore"; posValY = "0";
+        posOpZ = "ignore"; posValZ = "0";
     }
 
     private static String fmtNum(double d) {
@@ -938,16 +939,16 @@ public class SkyScriptScreen extends Screen {
         addDrawableChild(tf);
     }
 
-    /** 把玩家当前位置导入坐标表单（三轴都设 = 当前位置），省得手动敲 */
+    /** 把玩家当前位置导入坐标表单（默认 ≤，走到该边界触发；需要 > 方向请自己切 ≥） */
     private void importCurrentPos() {
         var player = MinecraftClient.getInstance().player;
         if (player == null) return;
         var pos = player.getEntityPos();
-        posOpX = "==";
+        posOpX = "<=";
         posValX = fmtNum(pos.getX());
-        posOpY = "==";
+        posOpY = "<=";
         posValY = fmtNum(pos.getY());
-        posOpZ = "==";
+        posOpZ = "<=";
         posValZ = fmtNum(pos.getZ());
         refresh();
     }

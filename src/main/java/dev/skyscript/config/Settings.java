@@ -103,18 +103,25 @@ public class Settings {
             if ("ignore".equals(currentKeySemantics)) currentKeySemantics = "stop";
             version = 2;
         }
-        // v3 迁移：触发键默认改为"自动=活动方案第一个动作的按键"，清掉旧版写死的 A/D
+        // v3 迁移：触发键默认改为"自动=活动方案里用到的按键"，清掉旧版写死的 A/D
         if (version < 3) {
             if (triggerKeys != null && triggerKeys.equals(List.of("A", "D"))) {
                 triggerKeys = new ArrayList<>();
             }
             version = 3;
         }
+        // v4：再次兜底清掉写死的 A/D（防止旧配置已到 v3 但仍是 A/D）
+        if (version < 4) {
+            if (triggerKeys != null && triggerKeys.equals(List.of("A", "D"))) {
+                triggerKeys = new ArrayList<>();
+            }
+            version = 4;
+        }
     }
 
     /** 恢复出厂默认（仅内存，点保存后落盘） */
     public void resetToDefaults() {
-        version = 3;
+        version = 4;
         currentKeySemantics = "stop";
         otherKeySemantics = "switch";
         triggerKeys = new ArrayList<>();

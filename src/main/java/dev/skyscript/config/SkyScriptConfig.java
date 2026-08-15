@@ -2,7 +2,9 @@ package dev.skyscript.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import dev.skyscript.script.PosCond;
 import dev.skyscript.script.Script;
+import dev.skyscript.script.Step;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
@@ -62,6 +64,27 @@ public final class SkyScriptConfig {
 
     // ---------- 方案 ----------
 
+    /** 清洗加载的方案：把旧版损坏的中文"忽略"op 归一到 "ignore"，并清掉 ignore 条件（避免摘要显示"未设"/运行时误判） */
+    private static void sanitizeScript(Script s) {
+        if (s == null || s.steps == null) return;
+        for (Step st : s.steps) {
+            sanitizeStep(st);
+        }
+    }
+
+    private static void sanitizeStep(Step st) {
+        if (st == null) return;
+        if (st.cond != null) {
+            st.cond.removeIf(pc -> pc == null || "忽略".equals(pc.op) || "ignore".equals(pc.op));
+            for (PosCond pc : st.cond) {
+                if (pc != null && "忽略".equals(pc.op)) pc.op = "ignore";
+            }
+        }
+        if ("loop".equals(st.type) && st.body != null) {
+            for (Step b : st.body) sanitizeStep(b);
+        }
+    }
+
     public static List<Script> listScripts() {
         List<Script> list = new ArrayList<>();
         try {
@@ -73,7 +96,10 @@ public final class SkyScriptConfig {
                         .forEach(p -> {
                             try {
                                 Script s = GSON.fromJson(Files.readString(p), Script.class);
-                                if (s != null && s.name != null) list.add(s);
+                                if (s != null && s.name != null) {
+                                    sanitizeScript(s);
+                                    list.add(s);
+                                }
                             } catch (Exception ignored) {
                             }
                         });

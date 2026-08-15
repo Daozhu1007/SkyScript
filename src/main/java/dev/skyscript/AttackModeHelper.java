@@ -17,7 +17,6 @@ import java.lang.reflect.Method;
  */
 public final class AttackModeHelper {
 
-    private static Field optionField;
     private static Object option;
     private static Method getValue;
     private static Method setValue;
@@ -27,45 +26,51 @@ public final class AttackModeHelper {
     }
 
     private static synchronized boolean init() {
-        if (tried) return optionField != null;
+        if (tried) return option != null;
         tried = true;
         try {
             MinecraftClient c = MinecraftClient.getInstance();
             if (c == null || c.options == null) return false;
-            Class<?> optCls = c.options.getClass();
-            for (Class<?> cls = optCls; cls != null; cls = cls.getSuperclass()) {
-                for (Field f : cls.getDeclaredFields()) {
-                    // 1.21.11+：attackToggled (SimpleOption<Boolean>)
-                    if ("attackToggled".equals(f.getName())) {
-                        optionField = f;
-                        break;
-                    }
-                    // 旧版：枚举 HOLD/TOGGLE 启发式
-                    if (!"net.minecraft.client.option.SimpleOption".equals(f.getType().getName())) continue;
-                    f.setAccessible(true);
-                    Object opt = f.get(c.options);
-                    if (opt == null) continue;
-                    try {
-                        Object val = opt.getClass().getMethod("getValue").invoke(opt);
-                        if (val != null && val.getClass().isEnum() && hasHoldToggle(val.getClass())) {
-                            optionField = f;
-                            break;
-                        }
-                    } catch (Exception ignored) {
-                    }
-                }
-                if (optionField != null) break;
+            // 1.21.11+：优先用公开 getter getAttackToggled()（比反射私有字段稳，绕开模块封装）
+            try {
+                Method getter = c.options.getClass().getMethod("getAttackToggled");
+                option = getter.invoke(c.options);
+            } catch (NoSuchMethodException ignored) {
+                option = findFieldOption(c);
             }
-            if (optionField == null) return false;
-            optionField.setAccessible(true);
-            option = optionField.get(c.options);
+            if (option == null) return false;
             getValue = option.getClass().getMethod("getValue");
             setValue = option.getClass().getMethod("setValue", Object.class);
             return true;
         } catch (Exception e) {
-            optionField = null;
             return false;
         }
+    }
+
+    /** 回退：反射找 attackToggled 字段 / HOLD-TOGGLE 枚举字段 */
+    private static Object findFieldOption(MinecraftClient c) throws Exception {
+        Class<?> optCls = c.options.getClass();
+        for (Class<?> cls = optCls; cls != null; cls = cls.getSuperclass()) {
+            for (Field f : cls.getDeclaredFields()) {
+                if ("attackToggled".equals(f.getName())) {
+                    f.setAccessible(true);
+                    return f.get(c.options);
+                }
+                if (!"net.minecraft.client.option.SimpleOption".equals(f.getType().getName())) continue;
+                f.setAccessible(true);
+                Object opt = f.get(c.options);
+                if (opt == null) continue;
+                try {
+                    Object val = opt.getClass().getMethod("getValue").invoke(opt);
+                    if (val != null && val.getClass().isEnum() && hasHoldToggle(val.getClass())) {
+                        return opt;
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+            if (cls.getSuperclass() == null) break;
+        }
+        return null;
     }
 
     private static boolean hasHoldToggle(Class<?> enumCls) {
