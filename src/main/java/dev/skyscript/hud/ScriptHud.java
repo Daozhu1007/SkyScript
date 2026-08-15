@@ -64,7 +64,8 @@ public final class ScriptHud {
         };
     }
 
-    /** 当前 HUD 在屏幕上的可视矩形（缩放坐标）：{x, y, w, h} */
+    /** 当前 HUD 在屏幕上的可视矩形（缩放坐标）：{x, y, w, h}。
+     *  统一语义：h.x/h.y 是绝对左上角（拖动/预设跳角都直接写它），预设不再叠加偏移。 */
     public static int[] getRect(MinecraftClient c) {
         Settings.HudSettings h = SkyScriptConfig.get().hud;
         String text = format(h.template);
@@ -72,24 +73,10 @@ public final class ScriptHud {
         float scale = h.scale <= 0 ? 1.0f : h.scale;
         int textW = (int) (tr.getWidth(text) * scale);
         int textH = (int) (tr.fontHeight * scale);
-        int sw = c.getWindow().getScaledWidth();
-        int sh = c.getWindow().getScaledHeight();
-        int x = h.x;
-        int y = h.y;
-        switch (h.pos == null ? "top-left" : h.pos) {
-            case "top-right" -> x = sw - textW - h.x;
-            case "bottom-left" -> y = sh - textH - h.y;
-            case "bottom-right" -> {
-                x = sw - textW - h.x;
-                y = sh - textH - h.y;
-            }
-            default -> {
-            }
-        }
-        return new int[]{x, y, textW, textH};
+        return new int[]{h.x, h.y, textW, textH};
     }
 
-    static String format(String template) {
+    public static String format(String template) {
         if (template == null) template = "";
         ScriptEngine e = ScriptEngine.INSTANCE;
         int[] prog = e.getLoopProgress();

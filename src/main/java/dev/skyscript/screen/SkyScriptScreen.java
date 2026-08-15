@@ -3,6 +3,7 @@ package dev.skyscript.screen;
 import dev.skyscript.config.Settings;
 import dev.skyscript.config.SkyScriptConfig;
 import dev.skyscript.hud.HudEditor;
+import dev.skyscript.hud.ScriptHud;
 import dev.skyscript.input.KeyEvents;
 import dev.skyscript.input.KeyNames;
 import dev.skyscript.script.PosCond;
@@ -416,7 +417,7 @@ public class SkyScriptScreen extends Screen {
         addSection("HUD");
         toggleRow("显示 HUD", hudEnabled, v -> { hudEnabled = v; refresh(); });
         toggleRow("静默模式（不显示不提示）", hudSilent, v -> { hudSilent = v; refresh(); });
-        cycleRow("位置", hudPos, POS, v -> { hudPos = v; refresh(); });
+        cycleRow("位置（点一下跳到该角）", hudPos, POS, v -> { applyHudPos(v); refresh(); });
         textRow("水平偏移 X", hudX, v -> hudX = v, null);
         textRow("垂直偏移 Y", hudY, v -> hudY = v, null);
         textRow("缩放", hudScale, v -> hudScale = v, null);
@@ -427,6 +428,21 @@ public class SkyScriptScreen extends Screen {
             close();
             if (this.client != null) this.client.setScreen(new HudEditScreen());
         }).dimensions(CONTENT_X, this.height - 34, 160, 20).build());
+    }
+
+    /** 预设跳角：把 HUD 的绝对坐标设到所选角（偏移 4px），消除"偏移叠加"造成的左右颠倒 */
+    private void applyHudPos(String newPos) {
+        hudPos = newPos;
+        int sw = this.width, sh = this.height;
+        int textW = this.textRenderer.getWidth(ScriptHud.format(hudTemplate));
+        int textH = this.textRenderer.fontHeight;
+        boolean right = newPos != null && newPos.contains("right");
+        boolean bottom = newPos != null && newPos.contains("bottom");
+        int x = 4, y = 4;
+        if (right) x = Math.max(4, sw - textW - 4);
+        if (bottom) y = Math.max(4, sh - textH - 4);
+        hudX = String.valueOf(x);
+        hudY = String.valueOf(y);
     }
 
     private void buildScriptsTab() {
