@@ -757,6 +757,11 @@ public class SkyScriptScreen extends Screen {
                         textRow("时长（秒）", msText, v -> msText = v, "按住多久，如 120 / 0.5");
                     } else if ("position".equals(st.untilType)) {
                         addSection("走到坐标（忽略=不限该轴）");
+                        int impY = yOf(nextRow++);
+                        if (visible(impY)) {
+                            addDrawableChild(ButtonWidget.builder(Text.literal("导入当前坐标（= 当前位置）"), b -> importCurrentPos())
+                                    .dimensions(LABEL_X, impY, 220, 20).build());
+                        }
                         posAxisRow("X", posOpX, posValX, v -> posOpX = v, v -> posValX = v);
                         posAxisRow("Y", posOpY, posValY, v -> posOpY = v, v -> posValY = v);
                         posAxisRow("Z", posOpZ, posValZ, v -> posOpZ = v, v -> posValZ = v);
@@ -931,6 +936,20 @@ public class SkyScriptScreen extends Screen {
         tf.setText(val);
         tf.setChangedListener(onVal);
         addDrawableChild(tf);
+    }
+
+    /** 把玩家当前位置导入坐标表单（三轴都设 = 当前位置），省得手动敲 */
+    private void importCurrentPos() {
+        var player = MinecraftClient.getInstance().player;
+        if (player == null) return;
+        var pos = player.getEntityPos();
+        posOpX = "==";
+        posValX = fmtNum(pos.getX());
+        posOpY = "==";
+        posValY = fmtNum(pos.getY());
+        posOpZ = "==";
+        posValZ = fmtNum(pos.getZ());
+        refresh();
     }
 
     private static String curDisplay(String[][] map, String store) {
