@@ -142,6 +142,11 @@ public final class ScriptEngine {
 
     public void start(Script original) {
         stop();
+        if (original == null || original.steps == null || original.steps.isEmpty()) {
+            // 空方案不启动，避免 enterStep 越界崩溃
+            Feedback.notify("§6[SkyScript] §f这个方案还没有动作，先编辑加动作再启动");
+            return;
+        }
         script = GSON.fromJson(GSON.toJson(original), Script.class);
         stack.clear();
         stack.push(new Frame(script.steps, script.loop));
@@ -264,6 +269,10 @@ public final class ScriptEngine {
     }
 
     private void enterStep(Frame f, int index) {
+        if (f == null || f.steps == null || f.steps.isEmpty() || index < 0 || index >= f.steps.size()) {
+            stop();
+            return;
+        }
         f.index = index;
         curStep = f.steps.get(index);
         phaseStartMs = nowMs();

@@ -453,9 +453,9 @@ public class SkyScriptScreen extends Screen {
             String nm = uniqueName("Preset");
             Script s = new Script(nm); // 空方案，从零加动作
             SkyScriptConfig.saveScript(s);
-            SkyScriptConfig.get().activeScript = s.name;
-            SkyScriptConfig.save();
+            // 空方案不设为活动（避免 F8 启动空脚本），等加好动作再点「活动」
             editingScript = s;
+            editOriginalName = s.name;
             stepsStack.clear();
             stepsStack.push(s.steps);
             editingStep = null;
