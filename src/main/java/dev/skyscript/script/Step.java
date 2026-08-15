@@ -54,13 +54,13 @@ public class Step {
         return s;
     }
 
-    /** 生成一行人话摘要（编辑器列表用），如「按 A 直到坐标 x≤100, y≥64」 */
+    /** 生成一行人话摘要（编辑器列表用）：按类型 + 结束条件正确拼句 */
     public String summary() {
         return switch (type) {
             case "wait" -> "等待 " + sec(Math.max(0, ms));
-            case "hold" -> "按 " + keysDesc() + " 直到坐标 " + untilDesc();
+            case "hold" -> "按 " + keysDesc() + " " + holdSuffix();
             case "press" -> "hold".equals(mode)
-                    ? "按住 " + keysDesc() + " 直到坐标 " + untilDesc()
+                    ? "按住 " + keysDesc() + " " + holdSuffix()
                     : "点按 " + keysDesc();
             case "command" -> "发送指令 " + (value == null || value.isEmpty() ? "/…" : value);
             case "loop" -> "循环 " + Math.max(1, times) + " 次（" + body.size() + " 步）";
@@ -73,23 +73,27 @@ public class Step {
         return String.join(" + ", keys);
     }
 
-    private String untilDesc() {
+    /** 长按类动作的结束条件后缀 */
+    private String holdSuffix() {
         return switch (untilType == null ? "time" : untilType) {
-            case "position" -> cond == null || cond.isEmpty() ? "（未设）" : condsText();
-            case "manual" -> "手动结束";
-            default -> "（持续 " + sec(Math.max(0, ms)) + "）";
+            case "position" -> "，直到坐标 " + condsText();
+            case "manual" -> "，手动结束";
+            default -> "，持续 " + sec(Math.max(0, ms));
         };
     }
 
-    /** 所有坐标条件，逗号连接：x≤100, y≥64 */
+    /** 有效坐标条件，逗号连接：x≤100, y≥64；忽略的轴不显示 */
     private String condsText() {
         StringBuilder sb = new StringBuilder();
-        for (PosCond pc : cond) {
-            if (pc == null) continue;
-            if (sb.length() > 0) sb.append(", ");
-            sb.append(pc.axis).append(condOp(pc.op)).append(trimZero(pc.value));
+        if (cond != null) {
+            for (PosCond pc : cond) {
+                if (pc == null || pc.op == null) continue;
+                if ("忽略".equals(pc.op) || "ignore".equals(pc.op)) continue;
+                if (sb.length() > 0) sb.append(", ");
+                sb.append(pc.axis).append(condOp(pc.op)).append(trimZero(pc.value));
+            }
         }
-        return sb.toString();
+        return sb.length() == 0 ? "（未设）" : sb.toString();
     }
 
     private static String condOp(String op) {

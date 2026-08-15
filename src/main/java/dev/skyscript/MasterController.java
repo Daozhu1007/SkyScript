@@ -26,17 +26,25 @@ public final class MasterController {
         boolean wasArmed = ScriptEngine.INSTANCE.isArmed();
         boolean screenOpen = c.currentScreen != null;
 
-        // 1. 脚本总开关（arm/disarm）：开启只"武装"，脚本等触发键(A/D)才启动；关闭则停止并解除武装，
-        //    此后 A/D 完全恢复正常移动（恢复 AHK 的 F8 总开关语义）。
+        // 1. 脚本总开关（arm/disarm）：开启只"武装"，脚本等触发键才启动；若开 startOnArm 则直接启动。
         if (m.toggleScript) {
             if (!wasArmed) {
                 ScriptEngine.INSTANCE.setArmed(true);
                 // 清掉武装前残留的 A/D 点击事件，避免"按 F8 自己就开始跑"
                 ScriptEngine.INSTANCE.resetTriggers();
                 Script s = SkyScriptConfig.getActiveScript();
-                Feedback.notify(s == null
-                        ? "§a[SkyScript] §f已开启: 按触发键(默认 §eA/D§f)开始"
-                        : "§a[SkyScript] §f已开启: 按触发键(默认 §eA/D§f)开始 §7[" + s.name + "]");
+                if (m.startOnArm) {
+                    if (s != null) {
+                        ScriptEngine.INSTANCE.start(s);
+                        Feedback.notify("§a[SkyScript] §f全自动已开启: §e" + s.name);
+                    } else {
+                        Feedback.notify("§6[SkyScript] §f没有活动方案，按 §eO§f 设置");
+                    }
+                } else {
+                    Feedback.notify(s == null
+                            ? "§a[SkyScript] §f已开启: 按触发键开始"
+                            : "§a[SkyScript] §f已开启: 按触发键开始 §7[" + s.name + "]");
+                }
             } else {
                 ScriptEngine.INSTANCE.setArmed(false); // 内部会 stop()
                 Feedback.notify("§c[SkyScript] §f已关闭: 触发键不再响应");

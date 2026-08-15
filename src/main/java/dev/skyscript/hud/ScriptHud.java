@@ -24,7 +24,8 @@ public final class ScriptHud {
     public static void render(DrawContext ctx, RenderTickCounter tickCounter) {
         MinecraftClient c = MinecraftClient.getInstance();
         Settings.HudSettings h = SkyScriptConfig.get().hud;
-        if (!h.enabled || h.silent) return;
+        // 编辑模式下即使 HUD 被关闭也要显示，让用户能拖到位置
+        if ((!h.enabled || h.silent) && !HudEditor.active) return;
         if (c.player == null || c.world == null) return;
 
         String text = format(h.template);

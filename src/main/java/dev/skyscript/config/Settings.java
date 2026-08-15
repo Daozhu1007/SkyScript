@@ -51,6 +51,8 @@ public class Settings {
     public static class MasterSettings {
         /** F8 是否控制脚本总开关（arm/disarm，见 ScriptEngine.isArmed） */
         public boolean toggleScript = true;
+        /** F8 开启时是否直接启动活动方案（而不是只武装等触发键） */
+        public boolean startOnArm = false;
         /** F8 是否切换攻击/摧毁模式（配合左键锁定） */
         public boolean toggleAttackMode = true;
         /** F8 联动 HUD：开启联动后，F8 开启时显示 HUD、关闭时隐藏（默认关，HUD 主开关在设置界面） */

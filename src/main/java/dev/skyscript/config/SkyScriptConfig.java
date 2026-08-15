@@ -107,6 +107,14 @@ public final class SkyScriptConfig {
         }
     }
 
+    /** 改名：保存到新文件，并删除旧文件（改名前后名字相同则只保存） */
+    public static void renameScript(Script script, String oldName) {
+        saveScript(script);
+        if (oldName != null && !oldName.equals(script.name)) {
+            deleteScript(oldName);
+        }
+    }
+
     /** 活动方案：只有用户在编辑器里显式设为「活动」才返回；未设置返回 null（不再自动选第一个）。 */
     public static Script getActiveScript() {
         if (settings.activeScript == null || settings.activeScript.isEmpty()) return null;
