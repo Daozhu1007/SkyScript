@@ -424,8 +424,8 @@ public class SkyScriptScreen extends Screen {
         textRow("HUD 文字内容", hudTemplate, v -> hudTemplate = v, "占位符会替换成实际值：{state}状态 {script}方案 {step}动作 {timeLeft}剩余秒 {attackMode}攻击模式");
         addDrawableChild(ButtonWidget.builder(Text.literal("拖动调整 HUD 位置…"), b -> {
             saveSettings();
-            HudEditor.toggle();
             close();
+            if (this.client != null) this.client.setScreen(new HudEditScreen());
         }).dimensions(CONTENT_X, this.height - 34, 160, 20).build());
     }
 

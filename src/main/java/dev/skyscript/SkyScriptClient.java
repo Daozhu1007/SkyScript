@@ -2,9 +2,9 @@ package dev.skyscript;
 
 import dev.skyscript.config.SkyScriptConfig;
 import dev.skyscript.engine.ScriptEngine;
-import dev.skyscript.hud.HudEditor;
 import dev.skyscript.hud.ScriptHud;
 import dev.skyscript.input.KeyNames;
+import dev.skyscript.screen.HudEditScreen;
 import dev.skyscript.screen.SkyScriptScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
@@ -40,6 +40,8 @@ public class SkyScriptClient implements ClientModInitializer {
      * 同步 setScreen 会被聊天框的 close() 顶掉（设置打不开），所以推迟到下一 tick 再开。
      */
     private static SkyScriptScreen.Tab openPanelTab;
+    /** /skyscript hud 延迟打开 HUD 编辑屏幕 */
+    private static boolean openHudEdit;
 
     @Override
     public void onInitializeClient() {
@@ -48,7 +50,7 @@ public class SkyScriptClient implements ClientModInitializer {
         registerCommands();
 
         ClientTickEvents.END_CLIENT_TICK.register(SkyScriptClient::onTick);
-        HudRenderCallback.EVENT.register(ScriptHud::render);
+        HudRenderCallback.EVENT.register((ctx, tc) -> ScriptHud.render(ctx));
         // 断线/退出：停止引擎
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             ScriptEngine.INSTANCE.stop();
@@ -95,11 +97,9 @@ public class SkyScriptClient implements ClientModInitializer {
                         openPanelTab = SkyScriptScreen.Tab.SCRIPTS;
                         return 1;
                     }))
-                    .then(literal("hud").executes(ctx -> { // /skyscript hud → 拖动调整 HUD 位置
-                        HudEditor.toggle();
-                        Feedback.notify(HudEditor.active
-                                ? "§a[SkyScript] §fHUD 编辑模式：拖动 HUD 调整位置，松开自动保存"
-                                : "§7[SkyScript] §f已退出 HUD 编辑模式");
+                    .then(literal("hud").executes(ctx -> { // /skyscript hud → HUD 位置编辑屏幕
+                        Feedback.notify("§a[SkyScript] §f打开 HUD 位置编辑…");
+                        openHudEdit = true;
                         return 1;
                     }))
                     .then(literal("help").executes(ctx -> {
@@ -116,13 +116,16 @@ public class SkyScriptClient implements ClientModInitializer {
             openPanelTab = null;
             client.setScreen(new SkyScriptScreen(t));
         }
+        if (openHudEdit && client.currentScreen == null) {
+            openHudEdit = false;
+            client.setScreen(new HudEditScreen());
+        }
         if (wasActivated(client, masterKey, SkyScriptConfig.get().masterKeyName)) {
             MasterController.onMasterPressed();
         }
         if (wasActivated(client, settingsKey, SkyScriptConfig.get().settingsKeyName) && client.currentScreen == null) {
             client.setScreen(new SkyScriptScreen());
         }
-        HudEditor.tick(client); // HUD 拖动编辑模式
         ScriptEngine.INSTANCE.tick(client);
     }
 
