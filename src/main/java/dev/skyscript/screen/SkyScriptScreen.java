@@ -2,12 +2,14 @@ package dev.skyscript.screen;
 
 import dev.skyscript.config.Settings;
 import dev.skyscript.config.SkyScriptConfig;
+import dev.skyscript.hud.HudEditor;
 import dev.skyscript.input.KeyEvents;
 import dev.skyscript.input.KeyNames;
 import dev.skyscript.script.PosCond;
 import dev.skyscript.script.Script;
 import dev.skyscript.script.Step;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.Drawable;
 import net.minecraft.client.gui.Element;
@@ -42,8 +44,8 @@ public class SkyScriptScreen extends Screen {
     private static final int LABEL_X = CONTENT_X + 4;
     private static final int TOP = 24;
     private static final int ROW_H = 20;
-    private static final int ZONE_W = 42;
-    private static final int ZONE_GAP = 4;
+    private static final int ZONE_W = 30;
+    private static final int ZONE_GAP = 2;
 
     // 循环选择项：显示值 ↔ 存储值
     private static final String[][] POS = {{"左上", "top-left"}, {"右上", "top-right"}, {"左下", "bottom-left"}, {"右下", "bottom-right"}};
@@ -77,12 +79,26 @@ public class SkyScriptScreen extends Screen {
 
         @Override
         public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
+            Text toDraw = text;
             if (bar) {
                 int w = MinecraftClient.getInstance().getWindow().getScaledWidth();
-                ctx.fill(x - 4, y - 2, w - 250, y + 16, 0x65000000);
+                int barRight = w - 180;
+                ctx.fill(x - 4, y - 2, barRight, y + 16, 0x65000000);
+                toDraw = truncateToFit(text.getString(), barRight - x - 6);
             }
             // 用立即绘制的 DrawnTextConsumer（按钮同款），不用 ctx.drawText（延迟队列，实测渲染不出来）
-            ctx.getTextConsumer().text(x, y, text);
+            ctx.getTextConsumer().text(x, y, toDraw);
+        }
+
+        /** 文字超出可用宽度时截断并加省略号（避免盖到右侧按钮） */
+        private static Text truncateToFit(String s, int maxWidth) {
+            TextRenderer tr = MinecraftClient.getInstance().textRenderer;
+            if (tr.getWidth(s) <= maxWidth) return Text.literal(s);
+            String cut = s;
+            while (cut.length() > 1 && tr.getWidth(cut + "…") > maxWidth) {
+                cut = cut.substring(0, cut.length() - 1);
+            }
+            return Text.literal(cut + "…");
         }
 
         // ---- Element / Selectable 的 no-op（纯显示控件，不参与交互/焦点/旁白） ----
@@ -120,15 +136,15 @@ public class SkyScriptScreen extends Screen {
     private Step editingStep;                            // 非 null = 步骤编辑层
     private String deleteArm = "";
     private int stepDeleteArm = -1;
-    private boolean capturing;
+    /** 按键录制目标：null=未录制 / "step"=步骤按键 / "master"=总控键 / "settings"=控制台键 */
+    private String capturingKey;
     // 步骤编辑表单临时文本
     private String msText = "", timesText = "1", cmdText = "";
     // 坐标条件（X/Y/Z 三轴，忽略=不限）
     private String posOpX = "忽略", posValX = "0", posOpY = "忽略", posValY = "0", posOpZ = "忽略", posValZ = "0";
 
     // ---- 新建方案向导 ----
-    private boolean inWizard;
-    private String wizName = "";
+    private boolean inWizard;    private String wizName = "";
     private String wizStartKey = "A";
     private String wizAxis = "x";
     private String wizOpA = "<=", wizValA = "100";
@@ -297,6 +313,20 @@ public class SkyScriptScreen extends Screen {
         }
     }
 
+    /** 官方式键位绑定行：点击进入"等待按键"，按任意键直接绑定到对应配置项 */
+    private void keyBindRow(String label, String value, String target) {
+        int y = yOf(nextRow++);
+        rowLabel(label, y, 0);
+        if (!visible(y)) return;
+        boolean cap = target.equals(capturingKey);
+        String btn = cap ? "§e> 按任意键… (ESC 取消)" : (value == null || value.isEmpty() ? "未设置" : value);
+        addDrawableChild(ButtonWidget.builder(Text.literal(btn), b -> {
+            capturingKey = cap ? null : target;
+            if (!cap) drainPressedQueue();
+            refresh();
+        }).dimensions(ctrlX(), y, 140, 20).build());
+    }
+
     // ==================== init / 构建各页 ====================
 
     @Override
@@ -376,8 +406,8 @@ public class SkyScriptScreen extends Screen {
         cycleRow("触发方式", extMethod, METH, v -> { extMethod = v; refresh(); });
         toggleRow("聊天反馈", mFeedback, v -> { mFeedback = v; refresh(); });
         addSection("按键");
-        textRow("控制台键", settingsKeyName, v -> settingsKeyName = v, "打开本面板");
-        textRow("总控键", masterKeyName, v -> masterKeyName = v, "默认 F8");
+        keyBindRow("控制台键（打开面板）", settingsKeyName, "settings");
+        keyBindRow("总控键（F8 全自动）", masterKeyName, "master");
         addSection("高级");
         toggleRow("方向交换（诊断）", directionSwap, v -> { directionSwap = v; refresh(); });
     }
@@ -392,6 +422,11 @@ public class SkyScriptScreen extends Screen {
         textRow("缩放", hudScale, v -> hudScale = v, null);
         toggleRow("背景", hudBackground, v -> { hudBackground = v; refresh(); });
         textRow("显示模板", hudTemplate, v -> hudTemplate = v, "占位: {state} {script} {step} {timeLeft}s {attackMode}");
+        addDrawableChild(ButtonWidget.builder(Text.literal("拖动调整 HUD 位置…"), b -> {
+            saveSettings();
+            HudEditor.toggle();
+            close();
+        }).dimensions(CONTENT_X, this.height - 34, 160, 20).build());
     }
 
     private void buildScriptsTab() {
@@ -574,7 +609,7 @@ public class SkyScriptScreen extends Screen {
             timesText = "1";
             cmdText = "";
             resetPosForm();
-            capturing = false;
+            capturingKey = null;
             refresh();
         }).dimensions(CONTENT_X, this.height - 34, 90, 20).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("返回"), b -> {
@@ -641,7 +676,7 @@ public class SkyScriptScreen extends Screen {
         timesText = st.times > 0 ? String.valueOf(st.times) : "1";
         cmdText = st.value == null ? "" : st.value;
         loadPosForm(st.cond);
-        capturing = false;
+        capturingKey = null;
         scroll = 0;
         refresh();
     }
@@ -659,12 +694,13 @@ public class SkyScriptScreen extends Screen {
             case "hold", "press" -> {
                 addSection("按键");
                 // MC 原生式绑键按钮：点击进入"等待按键"，按任意键直接绑定，反馈就在按钮上
-                String keyText = capturing
+                boolean cap = "step".equals(capturingKey);
+                String keyText = cap
                         ? "§e> 按任意键… (ESC 取消)"
                         : (st.keys.isEmpty() ? "按键：未设置" : "按键：" + String.join(" + ", st.keys));
                 addDrawableChild(ButtonWidget.builder(Text.literal(keyText), b -> {
-                    capturing = !capturing;
-                    if (capturing) drainPressedQueue(); // 清掉进入录制前的残留按键，避免闪一下就绑定
+                    capturingKey = cap ? null : "step";
+                    if (!cap) drainPressedQueue(); // 清掉进入录制前的残留按键，避免闪一下就绑定
                     refresh();
                 }).dimensions(LABEL_X, yOf(nextRow++), 270, 20).build());
                 if (!st.keys.isEmpty()) {
@@ -888,7 +924,7 @@ public class SkyScriptScreen extends Screen {
     @Override
     public void tick() {
         super.tick();
-        if (capturing && editingStep != null) {
+        if (capturingKey != null) {
             Integer kc = KeyEvents.pollPressed();
             if (kc != null) {
                 handleCapturedKey(kc);
@@ -898,13 +934,19 @@ public class SkyScriptScreen extends Screen {
 
     private void handleCapturedKey(int kc) {
         if (kc == GLFW.GLFW_KEY_ESCAPE) {
-            capturing = false;
+            capturingKey = null;
             refresh();
             return;
         }
         String name = KeyNames.nameOf(kc);
-        if (!editingStep.keys.contains(name)) editingStep.keys.add(name);
-        capturing = false;
+        if ("step".equals(capturingKey)) {
+            if (editingStep != null && !editingStep.keys.contains(name)) editingStep.keys.add(name);
+        } else if ("master".equals(capturingKey)) {
+            masterKeyName = name;
+        } else if ("settings".equals(capturingKey)) {
+            settingsKeyName = name;
+        }
+        capturingKey = null;
         refresh();
     }
 
@@ -917,7 +959,7 @@ public class SkyScriptScreen extends Screen {
     @Override
     public boolean keyPressed(KeyInput input) {
         // 录制期间吞掉所有按键（由 tick 处理），防止 ESC 顺手关掉面板 / 键进输入框
-        if (capturing) return true;
+        if (capturingKey != null) return true;
         return super.keyPressed(input);
     }
 

@@ -5,6 +5,7 @@
 	"client": [
 		"KeyboardInputMixin",
 		"KeyEventCatcher",
+		"MouseEventCatcher",
 		"InputAccessor",
 		"KeyboardAccessor",
 		"MouseAccessor"

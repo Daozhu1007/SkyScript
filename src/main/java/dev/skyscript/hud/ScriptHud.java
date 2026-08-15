@@ -8,6 +8,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.RenderTickCounter;
+import net.minecraft.text.Text;
 import org.joml.Matrix3x2fStack;
 
 /**
@@ -29,11 +30,40 @@ public final class ScriptHud {
         String text = format(h.template);
         if (text == null || text.isEmpty()) return;
         TextRenderer tr = c.textRenderer;
-        int textW = tr.getWidth(text);
-        int textH = tr.fontHeight;
+        int[] rect = getRect(c);
+        int x = rect[0], y = rect[1];
+
+        Matrix3x2fStack ms = ctx.getMatrices();
+        ms.pushMatrix();
+        float scale = h.scale <= 0 ? 1.0f : h.scale;
+        ms.scale(scale, scale);
+        int sx = (int) (x / scale);
+        int sy = (int) (y / scale);
+        if (h.background) {
+            ctx.fill(sx - 2, sy - 2, sx + tr.getWidth(text) + 2, sy + tr.fontHeight + 2, 0x80000000);
+        }
+        ctx.drawText(tr, text, sx, sy, stateColor(ScriptEngine.INSTANCE.getStateText()), true);
+        if (HudEditor.active) {
+            // 编辑模式：白色边框 + 提示
+            ctx.fill(sx - 3, sy - 3, sx + tr.getWidth(text) + 3, sy - 2, 0xFFFFFFFF);
+            ctx.fill(sx - 3, sy + tr.fontHeight + 2, sx + tr.getWidth(text) + 3, sy + tr.fontHeight + 3, 0xFFFFFFFF);
+            ctx.fill(sx - 3, sy - 3, sx - 2, sy + tr.fontHeight + 3, 0xFFFFFFFF);
+            ctx.fill(sx + tr.getWidth(text) + 2, sy - 3, sx + tr.getWidth(text) + 3, sy + tr.fontHeight + 3, 0xFFFFFFFF);
+            ctx.drawText(tr, Text.literal("拖动调整位置 · §e/skyscript hud§f 退出"), sx, sy + tr.fontHeight + 6, 0xFFFFFF, true);
+        }
+        ms.popMatrix();
+    }
+
+    /** 当前 HUD 在屏幕上的可视矩形（缩放坐标）：{x, y, w, h} */
+    public static int[] getRect(MinecraftClient c) {
+        Settings.HudSettings h = SkyScriptConfig.get().hud;
+        String text = format(h.template);
+        TextRenderer tr = c.textRenderer;
+        float scale = h.scale <= 0 ? 1.0f : h.scale;
+        int textW = (int) (tr.getWidth(text) * scale);
+        int textH = (int) (tr.fontHeight * scale);
         int sw = c.getWindow().getScaledWidth();
         int sh = c.getWindow().getScaledHeight();
-
         int x = h.x;
         int y = h.y;
         switch (h.pos == null ? "top-left" : h.pos) {
@@ -46,18 +76,7 @@ public final class ScriptHud {
             default -> {
             }
         }
-
-        Matrix3x2fStack ms = ctx.getMatrices();
-        ms.pushMatrix();
-        float scale = h.scale <= 0 ? 1.0f : h.scale;
-        ms.scale(scale, scale);
-        int sx = (int) (x / scale);
-        int sy = (int) (y / scale);
-        if (h.background) {
-            ctx.fill(sx - 2, sy - 2, sx + textW + 2, sy + textH + 2, 0x80000000);
-        }
-        ctx.drawText(tr, text, sx, sy, stateColor(ScriptEngine.INSTANCE.getStateText()), true);
-        ms.popMatrix();
+        return new int[]{x, y, textW, textH};
     }
 
     private static int stateColor(String state) {

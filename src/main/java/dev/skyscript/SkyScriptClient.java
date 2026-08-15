@@ -2,6 +2,7 @@ package dev.skyscript;
 
 import dev.skyscript.config.SkyScriptConfig;
 import dev.skyscript.engine.ScriptEngine;
+import dev.skyscript.hud.HudEditor;
 import dev.skyscript.hud.ScriptHud;
 import dev.skyscript.input.KeyNames;
 import dev.skyscript.screen.SkyScriptScreen;
@@ -94,8 +95,15 @@ public class SkyScriptClient implements ClientModInitializer {
                         openPanelTab = SkyScriptScreen.Tab.SCRIPTS;
                         return 1;
                     }))
+                    .then(literal("hud").executes(ctx -> { // /skyscript hud → 拖动调整 HUD 位置
+                        HudEditor.toggle();
+                        Feedback.notify(HudEditor.active
+                                ? "§a[SkyScript] §fHUD 编辑模式：拖动 HUD 调整位置，松开自动保存"
+                                : "§7[SkyScript] §f已退出 HUD 编辑模式");
+                        return 1;
+                    }))
                     .then(literal("help").executes(ctx -> {
-                        Feedback.notify("§a[SkyScript] §f命令: §e/skyscript§f 控制台 · §e/skyscript editor§f 脚本页 · 快捷键 §eO§f 控制台 / §eF8§f 总控");
+                        Feedback.notify("§a[SkyScript] §f命令: §e/skyscript§f 控制台 · §e/skyscript editor§f 脚本页 · §e/skyscript hud§f HUD位置 · 快捷键 §eO§f 控制台 / §eF8§f 总控");
                         return 1;
                     })));
         });
@@ -114,6 +122,7 @@ public class SkyScriptClient implements ClientModInitializer {
         if (wasActivated(client, settingsKey, SkyScriptConfig.get().settingsKeyName) && client.currentScreen == null) {
             client.setScreen(new SkyScriptScreen());
         }
+        HudEditor.tick(client); // HUD 拖动编辑模式
         ScriptEngine.INSTANCE.tick(client);
     }
 
