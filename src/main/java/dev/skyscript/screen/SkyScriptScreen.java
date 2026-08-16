@@ -550,12 +550,10 @@ public class SkyScriptScreen extends Screen {
         cycleRow("第一列方向（起始键）", wizStartKey, new String[][]{{"A（向左）", "A"}, {"D（向右）", "D"}}, v -> { wizStartKey = v; refresh(); });
         cycleRow("坐标轴", wizAxis, new String[][]{{"X（东西）", "x"}, {"Y（高度）", "y"}, {"Z（南北）", "z"}}, v -> { wizAxis = v; refresh(); });
         addSection("两列各自走到哪");
-        addLabel("A 列（起始键那一列）", 0xFFFFFF);
-        cycleRow("A 列比较", wizOpA, OPS_MAP, v -> { wizOpA = v; refresh(); });
-        textRow("A 列坐标值", wizValA, v -> wizValA = v, null);
-        addLabel("D 列（另一键那一列）", 0xFFFFFF);
-        cycleRow("D 列比较", wizOpD, OPS_MAP, v -> { wizOpD = v; refresh(); });
-        textRow("D 列坐标值", wizValD, v -> wizValD = v, null);
+        addLabel("A 列（起始键那一列）走到坐标", 0xFFFFFF);
+        textRow("A 列坐标值", wizValA, v -> wizValA = v, "走到该坐标就换方向");
+        addLabel("D 列（另一键那一列）走到坐标", 0xFFFFFF);
+        textRow("D 列坐标值", wizValD, v -> wizValD = v, "走到该坐标就换方向");
         addSection("一趟怎么走");
         textRow("每趟列数（交替几次）", wizCols, v -> wizCols = v, "如 5 = A,D,A,D,A 共 5 段");
         textRow("列间暂停（秒）", wizPause, v -> wizPause = v, "如 0.5");
@@ -577,8 +575,8 @@ public class SkyScriptScreen extends Screen {
         int cols = Math.max(1, parseInt(wizCols, 1));
         int pauseMs = (int) Math.round(Math.max(0, parseDouble(wizPause, 0.5)) * 1000);
         String axis = wizAxis == null || wizAxis.isEmpty() ? "x" : wizAxis;
-        PosCond ca = new PosCond(axis, wizOpA == null ? "<=" : wizOpA, parseDouble(wizValA, 100));
-        PosCond cd = new PosCond(axis, wizOpD == null ? ">=" : wizOpD, parseDouble(wizValD, 200));
+        PosCond ca = new PosCond(axis, "target", parseDouble(wizValA, 100));
+        PosCond cd = new PosCond(axis, "target", parseDouble(wizValD, 200));
         String key = "D".equals(wizStartKey) ? "D" : "A";
         String other = "A".equals(key) ? "D" : "A";
         for (int i = 0; i < cols; i++) {
@@ -759,7 +757,7 @@ public class SkyScriptScreen extends Screen {
                         addSection("走到坐标（忽略=不限该轴）");
                         int impY = yOf(nextRow++);
                         if (visible(impY)) {
-                            addDrawableChild(ButtonWidget.builder(Text.literal("导入当前坐标（= 当前位置）"), b -> importCurrentPos())
+                            addDrawableChild(ButtonWidget.builder(Text.literal("导入当前坐标（目标点）"), b -> importCurrentPos())
                                     .dimensions(LABEL_X, impY, 220, 20).build());
                         }
                         posAxisRow("X", posOpX, posValX, v -> posOpX = v, v -> posValX = v);
@@ -921,34 +919,33 @@ public class SkyScriptScreen extends Screen {
         return String.valueOf(d);
     }
 
-    /** 一行坐标轴：轴名 + 比较符按钮 + 值输入框 */
+    /** 一行坐标轴：轴名 + [启用/忽略]切换 + 目标值输入框（目标坐标模型，不用选 ≤/≥） */
     private void posAxisRow(String axis, String op, String val, Consumer<String> onOp, Consumer<String> onVal) {
         int y = yOf(nextRow++);
         rowLabel(axis, y, 0);
         if (!visible(y)) return;
-        String[] displays = displayOf(POS_OPS);
-        String cur = curDisplay(POS_OPS, op);
-        addDrawableChild(ButtonWidget.builder(Text.literal(cur), b -> {
-            onOp.accept(storeOf(POS_OPS, next(displays, cur)));
+        boolean on = !("ignore".equals(op) || "忽略".equals(op));
+        addDrawableChild(ButtonWidget.builder(Text.literal(on ? "§a启用" : "忽略"), b -> {
+            onOp.accept(on ? "ignore" : "target");
             refresh();
         }).dimensions(LABEL_X + 18, y, 62, 20).build());
-        TextFieldWidget tf = new TextFieldWidget(this.textRenderer, LABEL_X + 86, y, 100, 20, Text.literal(axis + " 坐标值"));
+        TextFieldWidget tf = new TextFieldWidget(this.textRenderer, LABEL_X + 86, y, 100, 20, Text.literal(axis + " 目标坐标"));
         tf.setMaxLength(16);
         tf.setText(val);
         tf.setChangedListener(onVal);
         addDrawableChild(tf);
     }
 
-    /** 把玩家当前位置导入坐标表单（默认 ≤，走到该边界触发；需要 > 方向请自己切 ≥） */
+    /** 把玩家当前位置导入为 X/Y/Z 目标坐标（三轴都启用，方向由引擎自动判断） */
     private void importCurrentPos() {
         var player = MinecraftClient.getInstance().player;
         if (player == null) return;
         var pos = player.getEntityPos();
-        posOpX = "<=";
+        posOpX = "target";
         posValX = fmtNum(pos.getX());
-        posOpY = "<=";
+        posOpY = "target";
         posValY = fmtNum(pos.getY());
-        posOpZ = "<=";
+        posOpZ = "target";
         posValZ = fmtNum(pos.getZ());
         refresh();
     }

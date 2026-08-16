@@ -81,6 +81,8 @@ public final class ScriptEngine {
     private final Map<String, Boolean> prevTrigger = new HashMap<>();
     private long implicitTapUntil;
     private final Set<String> implicitTapKeys = new HashSet<>();
+    // 坐标到达判定：记录上一 tick 与当前 tick 位置，自动推导移动方向（目标坐标模型，用户不用选 ≤/≥）
+    private double lastX, lastY, lastZ, prevX, prevY, prevZ;
 
     private ScriptEngine() {
     }
@@ -204,6 +206,8 @@ public final class ScriptEngine {
         }
 
         long now = nowMs();
+        // 记录上一 tick 与当前 tick 位置（坐标到达判定用）
+        trackPos(client);
         advanceIfDue(now);
 
         // 应用移动输入
@@ -327,7 +331,31 @@ public final class ScriptEngine {
             holdUntilMs = nowMs() + Math.max(0, curStep.ms < 0 ? 120000 : curStep.ms);
         } else {
             holdUntilMs = Long.MAX_VALUE;
+            // 坐标步骤：把上一 tick 位置初始化为当前位置，避免进场瞬间误判"已越过"
+            initTrackPos();
         }
+    }
+
+    /** 用玩家当前位置初始化坐标跟踪 */
+    private void initTrackPos() {
+        MinecraftClient c = MinecraftClient.getInstance();
+        if (c == null || c.player == null) return;
+        var pos = c.player.getEntityPos();
+        lastX = prevX = pos.getX();
+        lastY = prevY = pos.getY();
+        lastZ = prevZ = pos.getZ();
+    }
+
+    /** 每 tick 滚动位置：prev=上一 tick，last=当前 tick */
+    private void trackPos(MinecraftClient c) {
+        if (c == null || c.player == null) return;
+        var pos = c.player.getEntityPos();
+        prevX = lastX;
+        prevY = lastY;
+        prevZ = lastZ;
+        lastX = pos.getX();
+        lastY = pos.getY();
+        lastZ = pos.getZ();
     }
 
     /** 用 Robot 按住一组键中的非移动键（移动键走 MovementController，不走 OS 层） */
@@ -343,19 +371,45 @@ public final class ScriptEngine {
         return "hold".equals(s.type) || ("press".equals(s.type) && "hold".equals(s.mode));
     }
 
+    /**
+     * 坐标到达判定（目标坐标模型）：每个有条件的轴，看玩家朝目标移动，到达或越过目标就认为满足。
+     * 方向由上一 tick→当前 tick 的位置自动推导，用户不需要选 ≤/≥。
+     */
     private boolean posCondMet() {
         MinecraftClient c = MinecraftClient.getInstance();
         if (c == null || c.player == null || curStep == null || curStep.cond == null) return false;
         var pos = c.player.getEntityPos();
         for (var pc : curStep.cond) {
-            double v = switch (pc.axis == null ? "x" : pc.axis) {
-                case "y" -> pos.getY();
-                case "z" -> pos.getZ();
-                default -> pos.getX();
-            };
-            if (!pc.test(v)) return false;
+            if (pc == null || "ignore".equals(pc.op) || "忽略".equals(pc.op)) continue;
+            double cur = axisVal(pc.axis, pos);
+            double prev = axisVal(pc.axis, prevX, prevY, prevZ);
+            double target = pc.value;
+            double approach = target - prev; // 朝目标的方向：正=往大走，负=往小走
+            if (Math.abs(approach) < 1e-3) {
+                // 已在目标附近：够近就算到
+                if (Math.abs(cur - target) > 0.5) return false;
+            } else {
+                // 还没越过目标且还差超过 0.5 格 → 未到达
+                if ((cur - target) * Math.signum(approach) < -0.5) return false;
+            }
         }
         return true;
+    }
+
+    private static double axisVal(String axis, net.minecraft.util.math.Vec3d pos) {
+        return switch (axis == null ? "x" : axis) {
+            case "y" -> pos.getY();
+            case "z" -> pos.getZ();
+            default -> pos.getX();
+        };
+    }
+
+    private static double axisVal(String axis, double x, double y, double z) {
+        return switch (axis == null ? "x" : axis) {
+            case "y" -> y;
+            case "z" -> z;
+            default -> x;
+        };
     }
 
     private void performTap(Step s) {

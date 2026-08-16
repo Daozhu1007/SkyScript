@@ -82,7 +82,7 @@ public class Step {
         };
     }
 
-    /** 有效坐标条件，逗号连接：x≤100, y≥64；忽略的轴不显示 */
+    /** 有效坐标条件，逗号连接：x=100, y=64；忽略的轴不显示（目标坐标模型，方向自动） */
     private String condsText() {
         StringBuilder sb = new StringBuilder();
         if (cond != null) {
@@ -90,21 +90,10 @@ public class Step {
                 if (pc == null || pc.op == null) continue;
                 if ("忽略".equals(pc.op) || "ignore".equals(pc.op)) continue;
                 if (sb.length() > 0) sb.append(", ");
-                sb.append(pc.axis).append(condOp(pc.op)).append(trimZero(pc.value));
+                sb.append(pc.axis).append("=").append(trimZero(pc.value));
             }
         }
         return sb.length() == 0 ? "（未设）" : sb.toString();
-    }
-
-    private static String condOp(String op) {
-        return switch (op) {
-            case "<=" -> "≤";
-            case ">=" -> "≥";
-            case "==" -> "=";
-            case "<" -> "<";
-            case ">" -> ">";
-            default -> op;
-        };
     }
 
     private static String trimZero(double d) {
