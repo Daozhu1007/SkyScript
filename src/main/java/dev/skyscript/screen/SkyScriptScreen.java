@@ -127,6 +127,7 @@ public class SkyScriptScreen extends Screen {
     private String hudPos, hudX, hudY, hudScale, hudTemplate;
     private String curKeySem, triggerKeys, masterKeyName, settingsKeyName;
     private boolean directionSwap;
+    private boolean debugMode;
     private boolean mToggleScript, mStartOnArm, mToggleAttack, mToggleHud, mFeedback, mArmedOnJoin;
     private String extKey, extMethod;
 
@@ -184,6 +185,7 @@ public class SkyScriptScreen extends Screen {
         masterKeyName = s.masterKeyName;
         settingsKeyName = s.settingsKeyName;
         directionSwap = s.directionSwap;
+        debugMode = s.debugMode;
         mToggleScript = s.master.toggleScript;
         mStartOnArm = s.master.startOnArm;
         mToggleAttack = s.master.toggleAttackMode;
@@ -209,6 +211,7 @@ public class SkyScriptScreen extends Screen {
         s.masterKeyName = masterKeyName.trim().toUpperCase();
         s.settingsKeyName = settingsKeyName.trim().toUpperCase();
         s.directionSwap = directionSwap;
+        s.debugMode = debugMode;
         s.master.toggleScript = mToggleScript;
         s.master.startOnArm = mStartOnArm;
         s.master.toggleAttackMode = mToggleAttack;
@@ -406,6 +409,7 @@ public class SkyScriptScreen extends Screen {
         keyBindRow("锁鼠标热键（Lunar 等）", extKey, "ext");
         cycleRow("触发方式", extMethod, METH, v -> { extMethod = v; refresh(); });
         toggleRow("聊天反馈", mFeedback, v -> { mFeedback = v; refresh(); });
+        toggleRow("调试日志（执行过程）", debugMode, v -> { debugMode = v; refresh(); });
         addSection("按键");
         keyBindRow("控制台键（打开面板）", settingsKeyName, "settings");
         keyBindRow("总控键（F8 全自动）", masterKeyName, "master");

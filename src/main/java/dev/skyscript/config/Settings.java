@@ -32,6 +32,9 @@ public class Settings {
     /** 方向交换（诊断用兜底）：true 时 A/D 注入方向翻转 */
     public boolean directionSwap = false;
 
+    /** 调试日志：聊天栏打印脚本执行全过程（步骤切换/坐标误差/按键状态/停止原因），排查问题时开启 */
+    public boolean debugMode = false;
+
     public HudSettings hud = new HudSettings();
     public MasterSettings master = new MasterSettings();
 

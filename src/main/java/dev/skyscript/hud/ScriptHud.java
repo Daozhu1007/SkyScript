@@ -29,6 +29,7 @@ public final class ScriptHud {
 
         String text = format(h.template);
         if (text == null || text.isEmpty()) return;
+        String debugLine = ScriptEngine.INSTANCE.getDebugLine();
         TextRenderer tr = c.textRenderer;
         int[] rect = getRect(c);
         int x = rect[0], y = rect[1];
@@ -39,11 +40,16 @@ public final class ScriptHud {
         ms.scale(scale, scale);
         int sx = (int) (x / scale);
         int sy = (int) (y / scale);
+        int lines = debugLine == null ? 1 : 2;
         if (h.background) {
-            ctx.fill(sx - 2, sy - 2, sx + tr.getWidth(text) + 2, sy + tr.fontHeight + 2, 0x80000000);
+            ctx.fill(sx - 2, sy - 2, sx + Math.max(tr.getWidth(text), debugLine == null ? 0 : tr.getWidth(debugLine)) + 2,
+                    sy + lines * tr.fontHeight + (lines > 1 ? 4 : 2), 0x80000000);
         }
         // 用立即绘制的 DrawnTextConsumer（与按钮同款），保证在编辑屏幕里也渲染得出来
         ctx.getTextConsumer().text(sx, sy, Text.literal(stateCode(ScriptEngine.INSTANCE.getStateText()) + text));
+        if (debugLine != null) {
+            ctx.getTextConsumer().text(sx, sy + tr.fontHeight + 2, Text.literal("§8" + debugLine));
+        }
         if (HudEditor.active) {
             // 编辑模式：白色边框 + 提示
             ctx.fill(sx - 3, sy - 3, sx + tr.getWidth(text) + 3, sy - 2, 0xFFFFFFFF);
