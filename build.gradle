@@ -10,6 +10,10 @@ base {
 	archivesName = 'skyscript'
 }
 
+// Local deployment target. Override it with -PskyScriptModsDir=... if needed.
+def skyScriptModsDir = providers.gradleProperty('skyScriptModsDir')
+	.getOrElse('D:/Minecraft/.minecraft/versions/26.2-Fabric 0.19.3/mods')
+
 repositories {
 	mavenCentral()
 	maven {
@@ -48,5 +52,28 @@ java {
 jar {
 	from('LICENSE') {
 		rename { "${it}_${project.base.archivesName.get()}" }
+	}
+}
+
+def gameModsDir = file(skyScriptModsDir)
+
+tasks.register('cleanGameMod', Delete) {
+	onlyIf { gameModsDir.isDirectory() }
+	delete fileTree(gameModsDir) {
+		include "${project.base.archivesName.get()}-*.jar"
+		exclude '*-sources.jar'
+	}
+}
+
+afterEvaluate {
+	tasks.register('deployGameMod', Copy) {
+		dependsOn tasks.named('jar')
+		dependsOn tasks.named('cleanGameMod')
+		from(tasks.named('jar'))
+		into(gameModsDir)
+	}
+
+	tasks.named('build') {
+		finalizedBy tasks.named('deployGameMod')
 	}
 }
