@@ -11,7 +11,7 @@ import dev.skyscript.input.MovementController;
 import dev.skyscript.input.OsKeySimulator;
 import dev.skyscript.script.Script;
 import dev.skyscript.script.Step;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -229,7 +229,7 @@ public final class ScriptEngine {
 
     // ---------- 每 tick 驱动 ----------
 
-    public void tick(MinecraftClient client) {
+    public void tick(Minecraft client) {
         try {
             pollTriggers(client);
             if (!isRunning()) {
@@ -237,16 +237,16 @@ public final class ScriptEngine {
                 if (MovementController.active()) MovementController.clear();
                 return;
             }
-            if (client.player == null || client.getNetworkHandler() == null) {
+            if (client.player == null || client.getConnection() == null) {
                 stop("玩家或网络连接不存在");
                 return;
             }
-            if (client.player.isDead()) {
+            if (client.player.isDeadOrDying()) {
                 stop("玩家死亡");
                 return;
             }
 
-            boolean screenOpen = client.currentScreen != null;
+            boolean screenOpen = client.gui.screen() != null;
             if (screenOpen) {
                 if (phase != Phase.FROZEN) {
                     phase = Phase.FROZEN;
@@ -381,12 +381,12 @@ public final class ScriptEngine {
                 }
             }
             case "command" -> {
-                MinecraftClient c = MinecraftClient.getInstance();
+                Minecraft c = Minecraft.getInstance();
                 String cmd = curStep.value == null ? "" : curStep.value.trim();
-                if (c.getNetworkHandler() != null && !cmd.isEmpty()) {
+                if (c.getConnection() != null && !cmd.isEmpty()) {
                     String send = cmd.startsWith("/") ? cmd.substring(1) : cmd;
                     debug("Step " + prog[0] + "/" + prog[1] + " · 发送指令: /" + send);
-                    c.getNetworkHandler().sendChatCommand(send);
+                    c.getConnection().sendCommand(send);
                 } else {
                     debug("Step " + prog[0] + "/" + prog[1] + " · 指令跳过（空指令或无连接）");
                 }
@@ -476,9 +476,9 @@ public final class ScriptEngine {
      * <p>没有任何有效条件时返回 false（未配置的坐标步骤不允许秒过，由卡死告警提醒用户）。
      */
     private boolean posCondMet() {
-        MinecraftClient c = MinecraftClient.getInstance();
+        Minecraft c = Minecraft.getInstance();
         if (c == null || c.player == null || curStep == null || curStep.cond == null) return false;
-        var pos = c.player.getEntityPos();
+        var pos = c.player.position();
         boolean any = false;
         for (var pc : curStep.cond) {
             if (pc == null || isIgnoreOp(pc.op)) continue;
@@ -523,11 +523,11 @@ public final class ScriptEngine {
      * 典型卡死：朝向下 A/D 不改变目标轴（如目标只有 X 但玩家面向使横向键沿 Z 移动），
      * 或多轴条件里 Y 目标在纯横向移动下永远不可达。
      */
-    private void updatePositionWatchdog(MinecraftClient c, long now) {
+    private void updatePositionWatchdog(Minecraft c, long now) {
         if (curStep == null || !isHoldLike(curStep)) return;
         String ut = curStep.untilType == null ? "time" : curStep.untilType;
         if (!"position".equals(ut) || curStep.cond == null || curStep.cond.isEmpty()) return;
-        var pos = c.player.getEntityPos();
+        var pos = c.player.position();
         double maxErr = 0;
         StringBuilder err = new StringBuilder();
         for (var pc : curStep.cond) {
@@ -536,7 +536,7 @@ public final class ScriptEngine {
             err.append(pc.axis).append("Δ").append(String.format("%+.2f", d)).append(' ');
             maxErr = Math.max(maxErr, Math.abs(d));
         }
-        lastPosText = String.format("pos=(%.2f, %.2f, %.2f) 误差 %s", pos.getX(), pos.getY(), pos.getZ(), err);
+        lastPosText = String.format("pos=(%.2f, %.2f, %.2f) 误差 %s", pos.x, pos.y, pos.z, err);
         if (maxErr < bestDist - 0.01) {
             bestDist = maxErr;
             lastProgressMs = now;
@@ -556,16 +556,16 @@ public final class ScriptEngine {
     /** 调试日志：debugMode 开启时打到聊天栏（不走 Feedback 的开关与去重，避免被误伤） */
     private void debug(String msg) {
         if (!SkyScriptConfig.get().debugMode) return;
-        MinecraftClient c = MinecraftClient.getInstance();
+        Minecraft c = Minecraft.getInstance();
         if (c == null || c.player == null) return;
-        c.player.sendMessage(net.minecraft.text.Text.literal("§7[Script] §f" + msg), false);
+        c.player.sendSystemMessage(net.minecraft.network.chat.Component.literal("§7[Script] §f" + msg));
     }
 
-    private static double axisVal(String axis, net.minecraft.util.math.Vec3d pos) {
+    private static double axisVal(String axis, net.minecraft.world.phys.Vec3 pos) {
         return switch (axis == null ? "x" : axis) {
-            case "y" -> pos.getY();
-            case "z" -> pos.getZ();
-            default -> pos.getX();
+            case "y" -> pos.y;
+            case "z" -> pos.z;
+            default -> pos.x;
         };
     }
 
@@ -623,12 +623,12 @@ public final class ScriptEngine {
      * 事件驱动触发：由 KeyEventCatcher 捕获真实按键抬起事件（Keyboard.onKey），
      * 语义与 AHK 的 key-up 触发一致，快速点击也不会漏检。
      */
-    private void pollTriggers(MinecraftClient client) {
+    private void pollTriggers(Minecraft client) {
         // 未开启（F8 未 arm）时触发键完全不响应 —— 恢复 AHK「#HotIf FeatureOn()」语义：
         // 进游戏默认/关闭总开关后，A/D 只是普通移动键，怎么按都不会误启动脚本。
         if (!armed) return;
         // 打开界面时不响应触发键（冻结期间保持静默）
-        if (client.currentScreen != null) return;
+        if (client.gui.screen() != null) return;
         List<String> manual = SkyScriptConfig.get().triggerKeys;
         List<String> triggers;
         if (manual != null && !manual.isEmpty()) {

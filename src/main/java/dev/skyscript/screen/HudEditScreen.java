@@ -3,11 +3,12 @@ package dev.skyscript.screen;
 import dev.skyscript.config.SkyScriptConfig;
 import dev.skyscript.hud.HudEditor;
 import dev.skyscript.hud.ScriptHud;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.Click;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 
 /**
  * HUD 位置/大小编辑屏幕（Lunar 风格）：游戏画面在背后，光标自由。
@@ -22,15 +23,15 @@ public class HudEditScreen extends Screen {
     private int resizeCorner = -1; // 0=左上 1=右上 2=左下 3=右下
 
     public HudEditScreen() {
-        super(Text.literal("HUD 编辑"));
+        super(Component.literal("HUD 编辑"));
         HudEditor.active = true;
     }
 
     @Override
-    public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
-        super.render(ctx, mouseX, mouseY, delta);
-        MinecraftClient c = MinecraftClient.getInstance();
-        ScriptHud.render(ctx);
+    public void extractRenderState(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
+        super.extractRenderState(ctx, mouseX, mouseY, delta);
+        Minecraft c = Minecraft.getInstance();
+        ScriptHud.render(ctx, DeltaTracker.ZERO);
         int[] r = ScriptHud.getRect(c);
         // 四角手柄
         int[][] corners = {
@@ -41,8 +42,8 @@ public class HudEditScreen extends Screen {
             ctx.fill(cp[0] - HANDLE, cp[1] - HANDLE, cp[0] + HANDLE, cp[1] + HANDLE, 0xFFFFFFFF);
         }
         // 底部小提示
-        ctx.getTextConsumer().text(8, c.getWindow().getScaledHeight() - 12,
-                Text.literal("拖动移动 · 拖角缩放 · 滚轮调大小 · §eESC§f 退出"));
+        ctx.text(c.font, "拖动移动 · 拖角缩放 · 滚轮调大小 · §eESC§f 退出", 8,
+                c.getWindow().getGuiScaledHeight() - 12, 0xFFFFFFFF);
     }
 
     @Override
@@ -54,11 +55,11 @@ public class HudEditScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubled) {
+    public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
         if (click.button() == 0) {
             int mx = (int) click.x();
             int my = (int) click.y();
-            int[] r = ScriptHud.getRect(MinecraftClient.getInstance());
+            int[] r = ScriptHud.getRect(Minecraft.getInstance());
             int[][] corners = {
                     {r[0], r[1]}, {r[0] + r[2], r[1]},
                     {r[0], r[1] + r[3]}, {r[0] + r[2], r[1] + r[3]}
@@ -81,7 +82,7 @@ public class HudEditScreen extends Screen {
     }
 
     @Override
-    public boolean mouseDragged(Click click, double deltaX, double deltaY) {
+    public boolean mouseDragged(MouseButtonEvent click, double deltaX, double deltaY) {
         if (resizeCorner >= 0) {
             resizeTo((int) click.x(), (int) click.y());
             return true;
@@ -96,7 +97,7 @@ public class HudEditScreen extends Screen {
     }
 
     @Override
-    public boolean mouseReleased(Click click) {
+    public boolean mouseReleased(MouseButtonEvent click) {
         if (dragging || resizeCorner >= 0) {
             dragging = false;
             resizeCorner = -1;
@@ -107,15 +108,15 @@ public class HudEditScreen extends Screen {
     }
 
     @Override
-    public void close() {
+    public void onClose() {
         HudEditor.active = false;
         SkyScriptConfig.save();
-        super.close();
+        super.onClose();
     }
 
     /** 拖动角手柄缩放：锚定对角，按新宽度算 scale，并重摆 x/y 使对角不动 */
     private void resizeTo(int mx, int my) {
-        MinecraftClient c = MinecraftClient.getInstance();
+        Minecraft c = Minecraft.getInstance();
         var hud = SkyScriptConfig.get().hud;
         int[] r = ScriptHud.getRect(c);
         float oldScale = hud.scale <= 0 ? 1.0f : hud.scale;

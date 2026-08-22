@@ -2,9 +2,9 @@ package dev.skyscript.input;
 
 import dev.skyscript.mixin.KeyboardAccessor;
 import dev.skyscript.mixin.MouseAccessor;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.input.KeyInput;
-import net.minecraft.client.input.MouseInput;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonInfo;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -18,38 +18,38 @@ public final class KeySimulator {
     private KeySimulator() {
     }
 
-    private static MinecraftClient client() {
-        return MinecraftClient.getInstance();
+    private static Minecraft client() {
+        return Minecraft.getInstance();
     }
 
     /** 有界面打开时不注入（避免把按键打进聊天框/输入框） */
     public static boolean safe() {
-        return client() != null && client().currentScreen == null;
+        return client() != null && client().gui.screen() == null;
     }
 
     public static void tapKey(int glfw) {
-        MinecraftClient c = client();
-        if (c == null || c.currentScreen != null) return;
-        long w = c.getWindow().getHandle();
-        KeyboardAccessor ka = (KeyboardAccessor) c.keyboard;
+        Minecraft c = client();
+        if (c == null || c.gui.screen() != null) return;
+        long w = c.getWindow().handle();
+        KeyboardAccessor ka = (KeyboardAccessor) c.keyboardHandler;
         KeyEvents.setInjecting(true);
         try {
-            ka.skyScript$onKey(w, GLFW.GLFW_PRESS, new KeyInput(glfw, 0, 0));
-            ka.skyScript$onKey(w, GLFW.GLFW_RELEASE, new KeyInput(glfw, 0, 0));
+            ka.skyScript$keyPress(w, GLFW.GLFW_PRESS, new KeyEvent(glfw, 0, 0));
+            ka.skyScript$keyPress(w, GLFW.GLFW_RELEASE, new KeyEvent(glfw, 0, 0));
         } finally {
             KeyEvents.setInjecting(false);
         }
     }
 
     public static void tapMouseLeft() {
-        MinecraftClient c = client();
-        if (c == null || c.currentScreen != null) return;
-        long w = c.getWindow().getHandle();
-        MouseAccessor ma = (MouseAccessor) c.mouse;
+        Minecraft c = client();
+        if (c == null || c.gui.screen() != null) return;
+        long w = c.getWindow().handle();
+        MouseAccessor ma = (MouseAccessor) c.mouseHandler;
         KeyEvents.setInjecting(true);
         try {
-            ma.skyScript$onMouseButton(w, new MouseInput(GLFW.GLFW_MOUSE_BUTTON_LEFT, 0), GLFW.GLFW_PRESS);
-            ma.skyScript$onMouseButton(w, new MouseInput(GLFW.GLFW_MOUSE_BUTTON_LEFT, 0), GLFW.GLFW_RELEASE);
+            ma.skyScript$onButton(w, new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, 0), GLFW.GLFW_PRESS);
+            ma.skyScript$onButton(w, new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_LEFT, 0), GLFW.GLFW_RELEASE);
         } finally {
             KeyEvents.setInjecting(false);
         }

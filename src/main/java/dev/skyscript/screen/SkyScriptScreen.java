@@ -9,17 +9,18 @@ import dev.skyscript.input.KeyNames;
 import dev.skyscript.script.PosCond;
 import dev.skyscript.script.Script;
 import dev.skyscript.script.Step;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.Drawable;
-import net.minecraft.client.gui.Element;
-import net.minecraft.client.gui.Selectable;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.input.KeyInput;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Renderable;
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.narration.NarratableEntry;
+import net.minecraft.client.gui.narration.NarrationElementOutput;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayDeque;
@@ -66,43 +67,43 @@ public class SkyScriptScreen extends Screen {
      * 实测在 render() 里直接 ctx.drawText 画不出文字，但控件(按钮)能显示文字，
      * 所以所有标签都做成控件来保证可见。
      */
-    private static final class LabelDrawable implements Element, Drawable, Selectable {
-        private final Text text;
+    private static final class LabelDrawable implements GuiEventListener, Renderable, NarratableEntry {
+        private final Component text;
         private final int x, y;
         private final boolean bar; // 是否画深色底（列表行用）
 
         LabelDrawable(String text, int x, int y, boolean bar) {
-            this.text = Text.literal(text);
+            this.text = Component.literal(text);
             this.x = x;
             this.y = y;
             this.bar = bar;
         }
 
         @Override
-        public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
-            Text toDraw = text;
+        public void extractRenderState(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
+            Component toDraw = text;
             if (bar) {
-                int w = MinecraftClient.getInstance().getWindow().getScaledWidth();
+                int w = Minecraft.getInstance().getWindow().getGuiScaledWidth();
                 int barRight = w - 180;
                 ctx.fill(x - 4, y - 2, barRight, y + 16, 0x65000000);
                 toDraw = truncateToFit(text.getString(), barRight - x - 6);
             }
             // 用立即绘制的 DrawnTextConsumer（按钮同款），不用 ctx.drawText（延迟队列，实测渲染不出来）
-            ctx.getTextConsumer().text(x, y, toDraw);
+            ctx.text(Minecraft.getInstance().font, toDraw, x, y, 0xFFFFFFFF);
         }
 
         /** 文字超出可用宽度时截断并加省略号（避免盖到右侧按钮） */
-        private static Text truncateToFit(String s, int maxWidth) {
-            TextRenderer tr = MinecraftClient.getInstance().textRenderer;
-            if (tr.getWidth(s) <= maxWidth) return Text.literal(s);
+        private static Component truncateToFit(String s, int maxWidth) {
+            Font tr = Minecraft.getInstance().font;
+            if (tr.width(s) <= maxWidth) return Component.literal(s);
             String cut = s;
-            while (cut.length() > 1 && tr.getWidth(cut + "…") > maxWidth) {
+            while (cut.length() > 1 && tr.width(cut + "…") > maxWidth) {
                 cut = cut.substring(0, cut.length() - 1);
             }
-            return Text.literal(cut + "…");
+            return Component.literal(cut + "…");
         }
 
-        // ---- Element / Selectable 的 no-op（纯显示控件，不参与交互/焦点/旁白） ----
+        // ---- 纯显示控件：不参与交互、焦点和旁白 ----
         @Override
         public void setFocused(boolean focused) {
         }
@@ -113,12 +114,12 @@ public class SkyScriptScreen extends Screen {
         }
 
         @Override
-        public Selectable.SelectionType getType() {
-            return Selectable.SelectionType.NONE;
+        public NarratableEntry.NarrationPriority narrationPriority() {
+            return NarratableEntry.NarrationPriority.NONE;
         }
 
         @Override
-        public void appendNarrations(net.minecraft.client.gui.screen.narration.NarrationMessageBuilder builder) {
+        public void updateNarration(NarrationElementOutput builder) {
         }
     }
 
@@ -162,7 +163,7 @@ public class SkyScriptScreen extends Screen {
     }
 
     public SkyScriptScreen(Tab initialTab) {
-        super(Text.literal("SkyScript 控制台"));
+        super(Component.literal("SkyScript 控制台"));
         this.tab = initialTab;
         loadFromConfig();
         refreshScripts();
@@ -240,7 +241,7 @@ public class SkyScriptScreen extends Screen {
     // ==================== 布局助手 ====================
 
     private void refresh() {
-        clearChildren();
+        clearWidgets();
         init();
     }
 
@@ -261,7 +262,7 @@ public class SkyScriptScreen extends Screen {
             case 3 -> text;
             default -> text;
         };
-        addDrawableChild(new LabelDrawable(colored, LABEL_X, y, flag == 3));
+        addRenderableWidget(new LabelDrawable(colored, LABEL_X, y, flag == 3));
     }
 
     private int ctrlX() {
@@ -288,8 +289,8 @@ public class SkyScriptScreen extends Screen {
         int y = yOf(nextRow++);
         rowLabel(label, y, 0);
         if (!visible(y)) return;
-        addDrawableChild(ButtonWidget.builder(Text.literal(value ? "§a开" : "§c关"), b -> on.accept(!value))
-                .dimensions(ctrlX(), y, 60, 20).build());
+        addRenderableWidget(Button.builder(Component.literal(value ? "§a开" : "§c关"), b -> on.accept(!value))
+                .bounds(ctrlX(), y, 60, 20).build());
     }
 
     private void cycleRow(String label, String value, String[][] map, Consumer<String> on) {
@@ -301,19 +302,19 @@ public class SkyScriptScreen extends Screen {
             if (map[i][1].equals(value)) { idx = i; break; }
         }
         int next = (idx + 1) % map.length;
-        addDrawableChild(ButtonWidget.builder(Text.literal(map[idx][0]), b -> on.accept(map[next][1]))
-                .dimensions(ctrlX(), y, 120, 20).build());
+        addRenderableWidget(Button.builder(Component.literal(map[idx][0]), b -> on.accept(map[next][1]))
+                .bounds(ctrlX(), y, 120, 20).build());
     }
 
     private void textRow(String label, String initial, Consumer<String> on, String hint) {
         int y = yOf(nextRow++);
         rowLabel(label, y, 0);
         if (visible(y)) {
-            TextFieldWidget tf = new TextFieldWidget(this.textRenderer, ctrlX(), y, ctrlW(), 20, Text.literal(""));
+            EditBox tf = new EditBox(this.font, ctrlX(), y, ctrlW(), 20, Component.literal(""));
             tf.setMaxLength(200);
-            tf.setText(initial);
-            tf.setChangedListener(on);
-            addDrawableChild(tf);
+            tf.setValue(initial);
+            tf.setResponder(on);
+            addRenderableWidget(tf);
         }
         if (hint != null) {
             int hy = yOf(nextRow++);
@@ -328,11 +329,11 @@ public class SkyScriptScreen extends Screen {
         if (!visible(y)) return;
         boolean cap = target.equals(capturingKey);
         String btn = cap ? "§e> 按任意键… (ESC 取消)" : (value == null || value.isEmpty() ? "未设置" : value);
-        addDrawableChild(ButtonWidget.builder(Text.literal(btn), b -> {
+        addRenderableWidget(Button.builder(Component.literal(btn), b -> {
             capturingKey = cap ? null : target;
             if (!cap) drainPressedQueue();
             refresh();
-        }).dimensions(ctrlX(), y, 140, 20).build());
+        }).bounds(ctrlX(), y, 140, 20).build());
     }
 
     // ==================== init / 构建各页 ====================
@@ -352,24 +353,24 @@ public class SkyScriptScreen extends Screen {
             };
             final Tab target = t;
             String text = (tab == t ? "▶ " : "  ") + label;
-            addDrawableChild(ButtonWidget.builder(Text.literal(text), b -> switchTab(target))
-                    .dimensions(6, ty, SIDEBAR_W - 12, 24).build());
+            addRenderableWidget(Button.builder(Component.literal(text), b -> switchTab(target))
+                    .bounds(6, ty, SIDEBAR_W - 12, 24).build());
             ty += 30;
         }
 
         // 左侧底部动作按钮
-        addDrawableChild(ButtonWidget.builder(Text.literal("保存并返回"), b -> close())
-                .dimensions(6, h - 92, SIDEBAR_W - 12, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("恢复默认"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("保存并返回"), b -> onClose())
+                .bounds(6, h - 92, SIDEBAR_W - 12, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("恢复默认"), b -> {
             SkyScriptConfig.get().resetToDefaults();
             loadFromConfig();
             refresh();
-        }).dimensions(6, h - 66, SIDEBAR_W - 12, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("返回"), b -> close())
-                .dimensions(6, h - 40, SIDEBAR_W - 12, 20).build());
+        }).bounds(6, h - 66, SIDEBAR_W - 12, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("返回"), b -> onClose())
+                .bounds(6, h - 40, SIDEBAR_W - 12, 20).build());
 
         nextRow = 0;
-        addDrawableChild(new LabelDrawable("§fSkyScript 控制台", 6, 6, false));
+        addRenderableWidget(new LabelDrawable("§fSkyScript 控制台", 6, 6, false));
         switch (tab) {
             case MAIN -> buildMainTab();
             case HUD -> buildHudTab();
@@ -427,19 +428,19 @@ public class SkyScriptScreen extends Screen {
         textRow("缩放", hudScale, v -> hudScale = v, null);
         toggleRow("背景", hudBackground, v -> { hudBackground = v; refresh(); });
         textRow("HUD 文字内容", hudTemplate, v -> hudTemplate = v, "占位符会替换成实际值：{state}状态 {script}方案 {step}动作 {timeLeft}剩余秒 {attackMode}攻击模式");
-        addDrawableChild(ButtonWidget.builder(Text.literal("拖动调整 HUD 位置…"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("拖动调整 HUD 位置…"), b -> {
             saveSettings();
-            close();
-            if (this.client != null) this.client.setScreen(new HudEditScreen());
-        }).dimensions(CONTENT_X, this.height - 34, 160, 20).build());
+            onClose();
+            if (this.minecraft != null) this.minecraft.gui.setScreen(new HudEditScreen());
+        }).bounds(CONTENT_X, this.height - 34, 160, 20).build());
     }
 
     /** 预设跳角：把 HUD 的绝对坐标设到所选角（偏移 4px），消除"偏移叠加"造成的左右颠倒 */
     private void applyHudPos(String newPos) {
         hudPos = newPos;
         int sw = this.width, sh = this.height;
-        int textW = this.textRenderer.getWidth(ScriptHud.format(hudTemplate));
-        int textH = this.textRenderer.fontHeight;
+        int textW = this.font.width(ScriptHud.format(hudTemplate));
+        int textH = this.font.lineHeight;
         boolean right = newPos != null && newPos.contains("right");
         boolean bottom = newPos != null && newPos.contains("bottom");
         int x = 4, y = 4;
@@ -469,7 +470,7 @@ public class SkyScriptScreen extends Screen {
         addLabel("活动: " + activeScriptName(), 0xFFFFFF);
 
         // 新建
-        addDrawableChild(ButtonWidget.builder(Text.literal("新建空方案"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("新建空方案"), b -> {
             String nm = uniqueName("Preset");
             Script s = new Script(nm); // 空方案，从零加动作
             SkyScriptConfig.saveScript(s);
@@ -481,13 +482,13 @@ public class SkyScriptScreen extends Screen {
             editingStep = null;
             scroll = 0;
             refresh();
-        }).dimensions(CONTENT_X, this.height - 34, 100, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("农田向导…"), b -> {
+        }).bounds(CONTENT_X, this.height - 34, 100, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("农田向导…"), b -> {
             inWizard = true;
             wizName = "";
             scroll = 0;
             refresh();
-        }).dimensions(CONTENT_X + 106, this.height - 34, 90, 20).build());
+        }).bounds(CONTENT_X + 106, this.height - 34, 90, 20).build());
 
         int zoneStart = this.width - 16 - ZONE_W * 3 - ZONE_GAP * 2;
         for (int i = 0; i < scripts.size(); i++) {
@@ -497,11 +498,11 @@ public class SkyScriptScreen extends Screen {
             int y = yOf(nextRow++);
             rowLabel((isActive ? "§a▶ " : "  ") + s.name + "   §7" + (s.loop == 0 ? "无限循环" : "×" + s.loop + " 轮"), y, 3);
             if (visible(y)) {
-                addDrawableChild(zoneBtn(zoneStart, y, 0, isActive ? "§a活动" : "活动",
+                addRenderableWidget(zoneBtn(zoneStart, y, 0, isActive ? "§a活动" : "活动",
                         b -> { SkyScriptConfig.get().activeScript = s.name; SkyScriptConfig.save(); refresh(); }));
-                addDrawableChild(zoneBtn(zoneStart, y, 1, "编辑",
+                addRenderableWidget(zoneBtn(zoneStart, y, 1, "编辑",
                         b -> { editingScript = s; editOriginalName = s.name; stepsStack.clear(); stepsStack.push(s.steps); editingStep = null; scroll = 0; refresh(); }));
-                addDrawableChild(zoneBtn(zoneStart, y, 2, deleteArm.equals(s.name) ? "确认?" : "§c删除",
+                addRenderableWidget(zoneBtn(zoneStart, y, 2, deleteArm.equals(s.name) ? "确认?" : "§c删除",
                         b -> {
                             if (deleteArm.equals(s.name)) {
                                 if (s.name.equals(SkyScriptConfig.get().activeScript)) SkyScriptConfig.get().activeScript = "";
@@ -527,9 +528,9 @@ public class SkyScriptScreen extends Screen {
         return (a == null || a.isEmpty()) ? "（未设置）" : a;
     }
 
-    private ButtonWidget zoneBtn(int zoneStart, int y, int idx, String text, Consumer<ButtonWidget> on) {
-        return ButtonWidget.builder(Text.literal(text), b -> on.accept(b))
-                .dimensions(zoneStart + idx * (ZONE_W + ZONE_GAP), y - 2, ZONE_W, 20).build();
+    private Button zoneBtn(int zoneStart, int y, int idx, String text, Consumer<Button> on) {
+        return Button.builder(Component.literal(text), b -> on.accept(b))
+                .bounds(zoneStart + idx * (ZONE_W + ZONE_GAP), y - 2, ZONE_W, 20).build();
     }
 
     private String uniqueName(String base) {
@@ -563,10 +564,10 @@ public class SkyScriptScreen extends Screen {
         textRow("列间暂停（秒）", wizPause, v -> wizPause = v, "如 0.5");
         textRow("每趟结束指令", wizCmd, v -> wizCmd = v, "如 /home，可留空");
         textRow("整趟循环次数（0=无限）", wizRounds, v -> wizRounds = v, "每跑完一趟（含指令）算一轮");
-        addDrawableChild(ButtonWidget.builder(Text.literal("生成方案"), b -> generateFromWizard())
-                .dimensions(CONTENT_X, this.height - 34, 90, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("取消"), b -> { inWizard = false; refresh(); })
-                .dimensions(CONTENT_X + 96, this.height - 34, 70, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("生成方案"), b -> generateFromWizard())
+                .bounds(CONTENT_X, this.height - 34, 90, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("取消"), b -> { inWizard = false; refresh(); })
+                .bounds(CONTENT_X + 96, this.height - 34, 70, 20).build());
     }
 
     /** 按向导字段生成脚本并落盘，设为活动方案 */
@@ -622,31 +623,31 @@ public class SkyScriptScreen extends Screen {
         int nameY = yOf(nextRow++);
         rowLabel("方案名（改后自动保存）", nameY, 0);
         if (visible(nameY)) {
-            TextFieldWidget nameF = new TextFieldWidget(this.textRenderer, ctrlX(), nameY, ctrlW() - 90, 20, Text.literal("方案名"));
+            EditBox nameF = new EditBox(this.font, ctrlX(), nameY, ctrlW() - 90, 20, Component.literal("方案名"));
             nameF.setMaxLength(60);
-            nameF.setText(editingScript.name);
-            nameF.setChangedListener(v -> editingScript.name = v.trim());
-            addDrawableChild(nameF);
+            nameF.setValue(editingScript.name);
+            nameF.setResponder(v -> editingScript.name = v.trim());
+            addRenderableWidget(nameF);
         }
         // 整份循环（脚本级 loop：0=无限）
         int loopY = yOf(nextRow++);
         rowLabel("整份循环次数（0 = 一直循环）", loopY, 0);
         if (visible(loopY)) {
-            TextFieldWidget loopF = new TextFieldWidget(this.textRenderer, ctrlX(), loopY, 70, 20, Text.literal("次数"));
+            EditBox loopF = new EditBox(this.font, ctrlX(), loopY, 70, 20, Component.literal("次数"));
             loopF.setMaxLength(5);
-            loopF.setText(String.valueOf(editingScript.loop));
-            loopF.setChangedListener(v -> {
+            loopF.setValue(String.valueOf(editingScript.loop));
+            loopF.setResponder(v -> {
                 try {
                     editingScript.loop = Math.max(0, Integer.parseInt(v.trim()));
                 } catch (Exception ignored) {
                 }
             });
-            addDrawableChild(loopF);
+            addRenderableWidget(loopF);
         }
         int loopHintY = yOf(nextRow++);
         rowLabel("整份循环 = 从第 1 步跑到最后一步算一轮，然后自动重头再来（0 表示一直循环）", loopHintY, 2);
         // 添加动作 / 返回
-        addDrawableChild(ButtonWidget.builder(Text.literal("添加动作"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("添加动作"), b -> {
             Step step = new Step();
             editingStep = step;
             steps.add(step);
@@ -656,10 +657,10 @@ public class SkyScriptScreen extends Screen {
             resetPosForm();
             capturingKey = null;
             refresh();
-        }).dimensions(CONTENT_X, this.height - 34, 90, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("返回"), b -> {
+        }).bounds(CONTENT_X, this.height - 34, 90, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("返回"), b -> {
             backFromSteps();
-        }).dimensions(CONTENT_X + 96, this.height - 34, 70, 20).build());
+        }).bounds(CONTENT_X + 96, this.height - 34, 70, 20).build());
 
         int zoneStart = this.width - 16 - ZONE_W * 5 - ZONE_GAP * 4;
         for (int i = 0; i < steps.size(); i++) {
@@ -669,13 +670,13 @@ public class SkyScriptScreen extends Screen {
             rowLabel((i + 1) + ". " + st.summary(), y, 3);
             if (!visible(y)) continue;
             int col = 0;
-            if (i > 0) addDrawableChild(zoneBtn(zoneStart, y, col++, "↑", b -> moveStep(steps, idx, idx - 1)));
-            if (i < steps.size() - 1) addDrawableChild(zoneBtn(zoneStart, y, col++, "↓", b -> moveStep(steps, idx, idx + 1)));
-            addDrawableChild(zoneBtn(zoneStart, y, col++, "编辑", b -> openStepEdit(st, false)));
+            if (i > 0) addRenderableWidget(zoneBtn(zoneStart, y, col++, "↑", b -> moveStep(steps, idx, idx - 1)));
+            if (i < steps.size() - 1) addRenderableWidget(zoneBtn(zoneStart, y, col++, "↓", b -> moveStep(steps, idx, idx + 1)));
+            addRenderableWidget(zoneBtn(zoneStart, y, col++, "编辑", b -> openStepEdit(st, false)));
             if ("loop".equals(st.type)) {
-                addDrawableChild(zoneBtn(zoneStart, y, col++, "§b子步骤", b -> { stepsStack.push(st.body); refresh(); }));
+                addRenderableWidget(zoneBtn(zoneStart, y, col++, "§b子步骤", b -> { stepsStack.push(st.body); refresh(); }));
             }
-            addDrawableChild(zoneBtn(zoneStart, y, col, stepDeleteArm == idx ? "确认?" : "§c删除",
+            addRenderableWidget(zoneBtn(zoneStart, y, col, stepDeleteArm == idx ? "确认?" : "§c删除",
                     b -> {
                         if (stepDeleteArm == idx) {
                             steps.remove(idx);
@@ -743,14 +744,14 @@ public class SkyScriptScreen extends Screen {
                 String keyText = cap
                         ? "§e> 按任意键… (ESC 取消)"
                         : (st.keys.isEmpty() ? "按键：未设置" : "按键：" + String.join(" + ", st.keys));
-                addDrawableChild(ButtonWidget.builder(Text.literal(keyText), b -> {
+                addRenderableWidget(Button.builder(Component.literal(keyText), b -> {
                     capturingKey = cap ? null : "step";
                     if (!cap) drainPressedQueue(); // 清掉进入录制前的残留按键，避免闪一下就绑定
                     refresh();
-                }).dimensions(LABEL_X, yOf(nextRow++), 240, 20).build());
+                }).bounds(LABEL_X, yOf(nextRow++), 240, 20).build());
                 if (!st.keys.isEmpty()) {
-                    addDrawableChild(ButtonWidget.builder(Text.literal("清除"), b -> { st.keys.clear(); refresh(); })
-                            .dimensions(LABEL_X + 246, yOf(nextRow - 1), 60, 20).build());
+                    addRenderableWidget(Button.builder(Component.literal("清除"), b -> { st.keys.clear(); refresh(); })
+                            .bounds(LABEL_X + 246, yOf(nextRow - 1), 60, 20).build());
                 }
                 // 只有"长按"才需要结束条件；点按是一次性按下
                 if ("hold".equals(st.type) || "hold".equals(st.mode)) {
@@ -761,8 +762,8 @@ public class SkyScriptScreen extends Screen {
                         addSection("走到坐标（忽略=不限该轴）");
                         int impY = yOf(nextRow++);
                         if (visible(impY)) {
-                            addDrawableChild(ButtonWidget.builder(Text.literal("导入当前坐标（目标点）"), b -> importCurrentPos())
-                                    .dimensions(LABEL_X, impY, 220, 20).build());
+                            addRenderableWidget(Button.builder(Component.literal("导入当前坐标（目标点）"), b -> importCurrentPos())
+                                    .bounds(LABEL_X, impY, 220, 20).build());
                         }
                         posAxisRow("X", posOpX, posValX, v -> posOpX = v, v -> posValX = v);
                         posAxisRow("Y", posOpY, posValY, v -> posOpY = v, v -> posValY = v);
@@ -781,11 +782,11 @@ public class SkyScriptScreen extends Screen {
             case "loop" -> {
                 addSection("循环");
                 textRow("重复次数", timesText, v -> timesText = v, "这一段动作整体重复几遍，比如走完一行=1遍");
-                addDrawableChild(ButtonWidget.builder(Text.literal("编辑循环体（" + st.body.size() + " 步）"), b -> {
+                addRenderableWidget(Button.builder(Component.literal("编辑循环体（" + st.body.size() + " 步）"), b -> {
                     stepsStack.push(st.body);
                     editingStep = null;
                     refresh();
-                }).dimensions(LABEL_X, yOf(nextRow++), 240, 20).build());
+                }).bounds(LABEL_X, yOf(nextRow++), 240, 20).build());
                 int ly = yOf(nextRow++);
                 rowLabel("循环体 = 里面这些动作被重复 N 遍。想做'每行走完换方向'就把它套进循环。", ly, 2);
             }
@@ -793,16 +794,16 @@ public class SkyScriptScreen extends Screen {
             }
         }
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("保存"), b -> {
+        addRenderableWidget(Button.builder(Component.literal("保存"), b -> {
             applyStepFields(st);
             editingStep = null;
             refresh();
-        }).dimensions(CONTENT_X, this.height - 34, 90, 20).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("返回"), b -> {
+        }).bounds(CONTENT_X, this.height - 34, 90, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("返回"), b -> {
             applyStepFields(st); // 返回也应用表单，避免改了坐标却被丢弃
             editingStep = null;
             refresh();
-        }).dimensions(CONTENT_X + 96, this.height - 34, 90, 20).build());
+        }).bounds(CONTENT_X + 96, this.height - 34, 90, 20).build());
     }
 
     /** 动作类型选择按钮（大白话 → 底层 type/mode） */
@@ -810,10 +811,10 @@ public class SkyScriptScreen extends Screen {
         int y = yOf(nextRow++);
         if (!visible(y)) return;
         String current = stepTypeLabel(st);
-        addDrawableChild(ButtonWidget.builder(Text.literal("动作: " + current), b -> {
+        addRenderableWidget(Button.builder(Component.literal("动作: " + current), b -> {
             applyStepType(st, next(STEP_TYPE_ORDER, current));
             refresh();
-        }).dimensions(LABEL_X, y, 240, 20).build());
+        }).bounds(LABEL_X, y, 240, 20).build());
     }
 
     private static String stepTypeLabel(Step st) {
@@ -842,11 +843,11 @@ public class SkyScriptScreen extends Screen {
         int y = yOf(nextRow++);
         if (!visible(y)) return;
         String current = untilLabel(st.untilType);
-        addDrawableChild(ButtonWidget.builder(Text.literal("结束: " + current), b -> {
+        addRenderableWidget(Button.builder(Component.literal("结束: " + current), b -> {
             String nextDisplay = next(displayOf(UNTIL_MAP), current);
             st.untilType = storeOf(UNTIL_MAP, nextDisplay);
             refresh();
-        }).dimensions(LABEL_X, y, 240, 20).build());
+        }).bounds(LABEL_X, y, 240, 20).build());
     }
 
     private static String untilLabel(String ut) {
@@ -929,28 +930,28 @@ public class SkyScriptScreen extends Screen {
         rowLabel(axis, y, 0);
         if (!visible(y)) return;
         boolean on = !("ignore".equals(op) || "忽略".equals(op));
-        addDrawableChild(ButtonWidget.builder(Text.literal(on ? "§a启用" : "忽略"), b -> {
+        addRenderableWidget(Button.builder(Component.literal(on ? "§a启用" : "忽略"), b -> {
             onOp.accept(on ? "ignore" : "target");
             refresh();
-        }).dimensions(LABEL_X + 18, y, 62, 20).build());
-        TextFieldWidget tf = new TextFieldWidget(this.textRenderer, LABEL_X + 86, y, 100, 20, Text.literal(axis + " 目标坐标"));
+        }).bounds(LABEL_X + 18, y, 62, 20).build());
+        EditBox tf = new EditBox(this.font, LABEL_X + 86, y, 100, 20, Component.literal(axis + " 目标坐标"));
         tf.setMaxLength(16);
-        tf.setText(val);
-        tf.setChangedListener(onVal);
-        addDrawableChild(tf);
+        tf.setValue(val);
+        tf.setResponder(onVal);
+        addRenderableWidget(tf);
     }
 
     /** 把玩家当前位置导入为 X/Y/Z 目标坐标（三轴都启用，方向由引擎自动判断） */
     private void importCurrentPos() {
-        var player = MinecraftClient.getInstance().player;
+        var player = Minecraft.getInstance().player;
         if (player == null) return;
-        var pos = player.getEntityPos();
+        var pos = player.position();
         posOpX = "target";
-        posValX = fmtNum(pos.getX());
+        posValX = fmtNum(pos.x);
         posOpY = "target";
-        posValY = fmtNum(pos.getY());
+        posValY = fmtNum(pos.y);
         posOpZ = "target";
-        posValZ = fmtNum(pos.getZ());
+        posValZ = fmtNum(pos.z);
         refresh();
     }
 
@@ -969,18 +970,18 @@ public class SkyScriptScreen extends Screen {
     // ==================== 渲染 / 输入 ====================
 
     @Override
-    public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
+    public void extractRenderState(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
         // 所有文字都走 LabelDrawable 控件（在 super.render 里随控件一起画），
         // 不再在此手绘 drawText（实测手绘文字渲染不出来）。
-        super.render(ctx, mouseX, mouseY, delta);
+        super.extractRenderState(ctx, mouseX, mouseY, delta);
     }
 
     /** 关闭面板时自动保存（ESC / 返回 / 保存并返回 都走这里），避免改动丢失 */
     @Override
-    public void close() {
+    public void onClose() {
         saveSettings();
         persistEditingScript();
-        super.close();
+        super.onClose();
     }
 
     @Override
@@ -1038,7 +1039,7 @@ public class SkyScriptScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(KeyInput input) {
+    public boolean keyPressed(KeyEvent input) {
         // 录制期间吞掉所有按键（由 tick 处理），防止 ESC 顺手关掉面板 / 键进输入框
         if (capturingKey != null) return true;
         return super.keyPressed(input);

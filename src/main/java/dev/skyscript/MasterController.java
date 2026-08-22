@@ -7,7 +7,7 @@ import dev.skyscript.input.KeyNames;
 import dev.skyscript.input.KeySimulator;
 import dev.skyscript.input.OsKeySimulator;
 import dev.skyscript.script.Script;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 /**
  * F8 总控：一键执行联动动作序列（每项可在设置里开关）——
@@ -20,11 +20,11 @@ public final class MasterController {
     }
 
     public static void onMasterPressed() {
-        MinecraftClient c = MinecraftClient.getInstance();
+        Minecraft c = Minecraft.getInstance();
         if (c == null) return;
         Settings.MasterSettings m = SkyScriptConfig.get().master;
         boolean wasArmed = ScriptEngine.INSTANCE.isArmed();
-        boolean screenOpen = c.currentScreen != null;
+        boolean screenOpen = c.gui.screen() != null;
 
         // 1. 脚本总开关（arm/disarm）：开启只"武装"，脚本等触发键才启动；若开 startOnArm 则直接启动。
         if (m.toggleScript) {

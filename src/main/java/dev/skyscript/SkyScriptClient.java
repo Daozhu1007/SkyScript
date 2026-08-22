@@ -10,27 +10,27 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.util.Identifier;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.KeyMapping;
+import com.mojang.blaze3d.platform.InputConstants;
+import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
+import static net.fabricmc.fabric.api.client.command.v2.ClientCommands.literal;
 
 public class SkyScriptClient implements ClientModInitializer {
 
-    private static final KeyBinding.Category CATEGORY =
-            new KeyBinding.Category(Identifier.of("sky_script", "category"));
+    private static final KeyMapping.Category CATEGORY =
+            KeyMapping.Category.register(Identifier.fromNamespaceAndPath("sky_script", "category"));
 
-    public static KeyBinding masterKey;
-    public static KeyBinding settingsKey;
+    public static KeyMapping masterKey;
+    public static KeyMapping settingsKey;
 
     /** 轮询按下沿检测用的历史状态（键名 → 上一帧是否按下） */
     private static final Map<String, Boolean> prevKeyStates = new HashMap<>();
@@ -50,7 +50,10 @@ public class SkyScriptClient implements ClientModInitializer {
         registerCommands();
 
         ClientTickEvents.END_CLIENT_TICK.register(SkyScriptClient::onTick);
-        HudRenderCallback.EVENT.register((ctx, tc) -> ScriptHud.render(ctx));
+        HudElementRegistry.addLast(
+                Identifier.fromNamespaceAndPath("sky_script", "script_hud"),
+                ScriptHud::render
+        );
         // 断线/退出：停止引擎
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             ScriptEngine.INSTANCE.stop("断开连接/退出世界");
@@ -73,10 +76,10 @@ public class SkyScriptClient implements ClientModInitializer {
     private static void registerKeyBindings() {
         String master = SkyScriptConfig.get().masterKeyName;
         String settings = SkyScriptConfig.get().settingsKeyName;
-        masterKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.sky_script.master", InputUtil.Type.KEYSYM, keyOf(master, GLFW.GLFW_KEY_F8), CATEGORY));
-        settingsKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-                "key.sky_script.open_settings", InputUtil.Type.KEYSYM, keyOf(settings, GLFW.GLFW_KEY_O), CATEGORY));
+        masterKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.sky_script.master", InputConstants.Type.KEYSYM, keyOf(master, GLFW.GLFW_KEY_F8), CATEGORY));
+        settingsKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.sky_script.open_settings", InputConstants.Type.KEYSYM, keyOf(settings, GLFW.GLFW_KEY_O), CATEGORY));
     }
 
     private static int keyOf(String name, int fallback) {
@@ -109,44 +112,44 @@ public class SkyScriptClient implements ClientModInitializer {
         });
     }
 
-    private static void onTick(MinecraftClient client) {
+    private static void onTick(Minecraft client) {
         // 处理命令里推迟打开界面（等待聊天框关闭完成，避免被顶掉）
-        if (openPanelTab != null && client.currentScreen == null) {
+        if (openPanelTab != null && client.gui.screen() == null) {
             SkyScriptScreen.Tab t = openPanelTab;
             openPanelTab = null;
-            client.setScreen(new SkyScriptScreen(t));
+            client.gui.setScreen(new SkyScriptScreen(t));
         }
-        if (openHudEdit && client.currentScreen == null) {
+        if (openHudEdit && client.gui.screen() == null) {
             openHudEdit = false;
-            client.setScreen(new HudEditScreen());
+            client.gui.setScreen(new HudEditScreen());
         }
         if (wasActivated(client, masterKey, SkyScriptConfig.get().masterKeyName)) {
             MasterController.onMasterPressed();
         }
-        if (wasActivated(client, settingsKey, SkyScriptConfig.get().settingsKeyName) && client.currentScreen == null) {
-            client.setScreen(new SkyScriptScreen());
+        if (wasActivated(client, settingsKey, SkyScriptConfig.get().settingsKeyName) && client.gui.screen() == null) {
+            client.gui.setScreen(new SkyScriptScreen());
         }
         ScriptEngine.INSTANCE.tick(client);
     }
 
     /**
-     * 双通道检测：KeyBinding.wasPressed() + GLFW 轮询按下沿。
-     * 1.21.11 输入重构后 KeyBinding 的按下状态时序不可靠，轮询通道保证按键必响应。
+     * 双通道检测：KeyMapping.consumeClick() + GLFW 轮询按下沿。
+     * 1.21.11 输入重构后按键映射的按下状态时序不可靠，轮询通道保证按键必响应。
      * 按下沿带 80ms 防抖，避免异常抖动重复触发。
      */
     private static final long KEY_DEBOUNCE_MS = 80;
     private static final Map<String, Long> lastKeyFire = new HashMap<>();
 
-    private static boolean wasActivated(MinecraftClient client, KeyBinding binding, String configKey) {
+    private static boolean wasActivated(Minecraft client, KeyMapping binding, String configKey) {
         boolean pressed = false;
         Integer code = KeyNames.glfwOf(configKey);
         if (code != null && client.getWindow() != null) {
-            pressed = InputUtil.isKeyPressed(client.getWindow(), code);
+            pressed = InputConstants.isKeyDown(client.getWindow(), code);
         }
         boolean prev = prevKeyStates.getOrDefault(configKey, false);
         prevKeyStates.put(configKey, pressed);
         boolean edge = pressed && !prev;
-        if (edge || (binding != null && binding.wasPressed())) {
+        if (edge || (binding != null && binding.consumeClick())) {
             long now = System.currentTimeMillis();
             Long last = lastKeyFire.get(configKey);
             if (last != null && now - last < KEY_DEBOUNCE_MS) return false;

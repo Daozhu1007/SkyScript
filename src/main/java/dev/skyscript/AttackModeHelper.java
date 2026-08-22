@@ -1,6 +1,7 @@
 package dev.skyscript;
 
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.OptionInstance;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -17,7 +18,7 @@ import java.lang.reflect.Method;
  */
 public final class AttackModeHelper {
 
-    private static Object option;
+    private static OptionInstance<Boolean> option;
     private static Method getValue;
     private static Method setValue;
     private static boolean tried;
@@ -29,58 +30,15 @@ public final class AttackModeHelper {
         if (tried) return option != null;
         tried = true;
         try {
-            MinecraftClient c = MinecraftClient.getInstance();
-            if (c == null || c.options == null) return false;
-            // 1.21.11+：优先用公开 getter getAttackToggled()（比反射私有字段稳，绕开模块封装）
-            try {
-                Method getter = c.options.getClass().getMethod("getAttackToggled");
-                option = getter.invoke(c.options);
-            } catch (NoSuchMethodException ignored) {
-                option = findFieldOption(c);
-            }
-            if (option == null) return false;
+        Minecraft c = Minecraft.getInstance();
+        if (c == null || c.options == null) return false;
+        option = c.options.toggleAttack();
             getValue = option.getClass().getMethod("getValue");
             setValue = option.getClass().getMethod("setValue", Object.class);
             return true;
         } catch (Exception e) {
             return false;
         }
-    }
-
-    /** 回退：反射找 attackToggled 字段 / HOLD-TOGGLE 枚举字段 */
-    private static Object findFieldOption(MinecraftClient c) throws Exception {
-        Class<?> optCls = c.options.getClass();
-        for (Class<?> cls = optCls; cls != null; cls = cls.getSuperclass()) {
-            for (Field f : cls.getDeclaredFields()) {
-                if ("attackToggled".equals(f.getName())) {
-                    f.setAccessible(true);
-                    return f.get(c.options);
-                }
-                if (!"net.minecraft.client.option.SimpleOption".equals(f.getType().getName())) continue;
-                f.setAccessible(true);
-                Object opt = f.get(c.options);
-                if (opt == null) continue;
-                try {
-                    Object val = opt.getClass().getMethod("getValue").invoke(opt);
-                    if (val != null && val.getClass().isEnum() && hasHoldToggle(val.getClass())) {
-                        return opt;
-                    }
-                } catch (Exception ignored) {
-                }
-            }
-            if (cls.getSuperclass() == null) break;
-        }
-        return null;
-    }
-
-    private static boolean hasHoldToggle(Class<?> enumCls) {
-        boolean hold = false, toggle = false;
-        for (Object e : enumCls.getEnumConstants()) {
-            String n = ((Enum<?>) e).name();
-            if (n.contains("HOLD")) hold = true;
-            if (n.contains("TOGGLE")) toggle = true;
-        }
-        return hold && toggle;
     }
 
     public static boolean available() {

@@ -1,6 +1,6 @@
 # SkyScript
 
-> A programmable SkyBlock farming automation framework for Minecraft 1.21.11 (client-side Fabric mod).
+> A programmable SkyBlock farming automation framework for Minecraft 26.2 (client-side Fabric mod).
 
 SkyScript evolved from a simple AutoHotkey script (`AutoKey.ahk`) into a full in-game automation framework: JSON step-based scripts (time / coordinate / manual triggers), a one-key master control (script toggle + attack/destroy mode switch + external hotkey triggers + HUD toggle), an in-game script editor, and a fully customizable Lunar-style HUD.
 
@@ -11,13 +11,13 @@ SkyScript evolved from a simple AutoHotkey script (`AutoKey.ahk`) into a full in
 | `DESIGN.md` | Design specification (architecture / DSL / state machine / input layers / milestones / risks) |
 | `AutoKey.ahk` | Original AHK script (historical reference) |
 | `examples/` | Example script JSON files |
-| `build/libs/skyscript-0.1.1.jar` | **Release artifact (build output)** |
+| `build/libs/skyscript-0.3.0-alpha+26.2.jar` | **Release artifact (build output)** |
 | `.toolchain/` | Local toolchain (Gradle distribution, push script). Git-ignored; not part of the repository. |
 
 ## Installation
 
-1. Requirements: [Fabric Loader](https://fabricmc.net/use/) (0.17+), [Fabric API](https://modrinth.com/mod/fabric-api) (1.21.11 build), Minecraft 1.21.11 (Java 21+).
-2. Copy `build/libs/skyscript-0.1.1.jar` into `.minecraft/mods/`.
+1. Requirements: [Fabric Loader](https://fabricmc.net/use/) (0.19.3+), [Fabric API](https://modrinth.com/mod/fabric-api) (26.2 build), Minecraft 26.2 (Java 25+).
+2. Copy `build/libs/skyscript-0.3.0-alpha+26.2.jar` into `.minecraft/mods/`.
 3. Optional: if your environment supports loading Fabric mods (e.g. Lunar Client with Fabric support), the mod may be placed there as well; otherwise use a plain Fabric client with the Modrinth build of SkyHanni.
 
 ## Quick Start
@@ -119,7 +119,7 @@ External hotkey `method`: `inject` (in-game event injection, works with MC keybi
 gradlew build          # artifacts in build/libs/
 ```
 
-Toolchain: JDK 21+, Gradle 9.5+ (required by Loom 1.17.19), Fabric API 0.141.6+1.21.11, Yarn 1.21.11+build.6.
+Toolchain: JDK 25+, Gradle 9.5+, Fabric Loom 1.17.19, Fabric API 0.158.0+26.2. Minecraft 26.2 uses official names directly; Yarn mappings are no longer part of the build.
 
 ## Pushing to GitHub (Network-Restricted Environment)
 
@@ -145,5 +145,6 @@ git push origin main
 
 ## Release History
 
+- **v0.3.0-alpha+26.2** — Migration to Minecraft 26.2, Java 25, official names, new GUI/HUD extraction APIs, and Fabric key-mapping API.
 - **v0.1.1** — Settings screen (`/skyscript`), Mod Menu integration, dual-channel key detection, chat feedback, state-colored HUD.
 - **v0.1.0** — Initial release: script engine, input injection, F8 master control, HUD, in-game editor.

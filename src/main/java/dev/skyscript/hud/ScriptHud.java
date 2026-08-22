@@ -4,10 +4,9 @@ import dev.skyscript.AttackModeHelper;
 import dev.skyscript.config.Settings;
 import dev.skyscript.config.SkyScriptConfig;
 import dev.skyscript.engine.ScriptEngine;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import org.joml.Matrix3x2fStack;
 
 /**
@@ -20,21 +19,21 @@ public final class ScriptHud {
     private ScriptHud() {
     }
 
-    public static void render(DrawContext ctx) {
-        MinecraftClient c = MinecraftClient.getInstance();
+    public static void render(GuiGraphicsExtractor ctx, DeltaTracker deltaTracker) {
+        Minecraft c = Minecraft.getInstance();
         Settings.HudSettings h = SkyScriptConfig.get().hud;
         // 编辑模式下即使 HUD 被关闭也要显示，让用户能拖到位置
         if ((!h.enabled || h.silent) && !HudEditor.active) return;
-        if (c.player == null || c.world == null) return;
+        if (c.player == null || c.level == null) return;
 
         String text = format(h.template);
         if (text == null || text.isEmpty()) return;
         String debugLine = ScriptEngine.INSTANCE.getDebugLine();
-        TextRenderer tr = c.textRenderer;
+        var tr = c.font;
         int[] rect = getRect(c);
         int x = rect[0], y = rect[1];
 
-        Matrix3x2fStack ms = ctx.getMatrices();
+        Matrix3x2fStack ms = ctx.pose();
         ms.pushMatrix();
         float scale = h.scale <= 0 ? 1.0f : h.scale;
         ms.scale(scale, scale);
@@ -42,21 +41,20 @@ public final class ScriptHud {
         int sy = (int) (y / scale);
         int lines = debugLine == null ? 1 : 2;
         if (h.background) {
-            ctx.fill(sx - 2, sy - 2, sx + Math.max(tr.getWidth(text), debugLine == null ? 0 : tr.getWidth(debugLine)) + 2,
-                    sy + lines * tr.fontHeight + (lines > 1 ? 4 : 2), 0x80000000);
+            ctx.fill(sx - 2, sy - 2, sx + Math.max(tr.width(text), debugLine == null ? 0 : tr.width(debugLine)) + 2,
+                    sy + lines * tr.lineHeight + (lines > 1 ? 4 : 2), 0x80000000);
         }
-        // 用立即绘制的 DrawnTextConsumer（与按钮同款），保证在编辑屏幕里也渲染得出来
-        ctx.getTextConsumer().text(sx, sy, Text.literal(stateCode(ScriptEngine.INSTANCE.getStateText()) + text));
+        ctx.text(tr, stateCode(ScriptEngine.INSTANCE.getStateText()) + text, sx, sy, 0xFFFFFFFF);
         if (debugLine != null) {
-            ctx.getTextConsumer().text(sx, sy + tr.fontHeight + 2, Text.literal("§8" + debugLine));
+            ctx.text(tr, "§8" + debugLine, sx, sy + tr.lineHeight + 2, 0xFFFFFFFF);
         }
         if (HudEditor.active) {
             // 编辑模式：白色边框 + 提示
-            ctx.fill(sx - 3, sy - 3, sx + tr.getWidth(text) + 3, sy - 2, 0xFFFFFFFF);
-            ctx.fill(sx - 3, sy + tr.fontHeight + 2, sx + tr.getWidth(text) + 3, sy + tr.fontHeight + 3, 0xFFFFFFFF);
-            ctx.fill(sx - 3, sy - 3, sx - 2, sy + tr.fontHeight + 3, 0xFFFFFFFF);
-            ctx.fill(sx + tr.getWidth(text) + 2, sy - 3, sx + tr.getWidth(text) + 3, sy + tr.fontHeight + 3, 0xFFFFFFFF);
-            ctx.getTextConsumer().text(sx, sy + tr.fontHeight + 6, Text.literal("拖动调整位置 · §eESC§f 退出"));
+            ctx.fill(sx - 3, sy - 3, sx + tr.width(text) + 3, sy - 2, 0xFFFFFFFF);
+            ctx.fill(sx - 3, sy + tr.lineHeight + 2, sx + tr.width(text) + 3, sy + tr.lineHeight + 3, 0xFFFFFFFF);
+            ctx.fill(sx - 3, sy - 3, sx - 2, sy + tr.lineHeight + 3, 0xFFFFFFFF);
+            ctx.fill(sx + tr.width(text) + 2, sy - 3, sx + tr.width(text) + 3, sy + tr.lineHeight + 3, 0xFFFFFFFF);
+            ctx.text(tr, "拖动调整位置 · §eESC§f 退出", sx, sy + tr.lineHeight + 6, 0xFFFFFFFF);
         }
         ms.popMatrix();
     }
@@ -72,13 +70,13 @@ public final class ScriptHud {
 
     /** 当前 HUD 在屏幕上的可视矩形（缩放坐标）：{x, y, w, h}。
      *  统一语义：h.x/h.y 是绝对左上角（拖动/预设跳角都直接写它），预设不再叠加偏移。 */
-    public static int[] getRect(MinecraftClient c) {
+    public static int[] getRect(Minecraft c) {
         Settings.HudSettings h = SkyScriptConfig.get().hud;
         String text = format(h.template);
-        TextRenderer tr = c.textRenderer;
+        var tr = c.font;
         float scale = h.scale <= 0 ? 1.0f : h.scale;
-        int textW = (int) (tr.getWidth(text) * scale);
-        int textH = (int) (tr.fontHeight * scale);
+        int textW = (int) (tr.width(text) * scale);
+        int textH = (int) (tr.lineHeight * scale);
         return new int[]{h.x, h.y, textW, textH};
     }
 

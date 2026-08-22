@@ -6,9 +6,9 @@
 - **Project name**: SkyScript
 - **Project root**: `D:\Code\SkyScript`
 - **Mod id**: `sky_script`
-- **Target version**: Minecraft 1.21.11 (Fabric)
+- **Target version**: Minecraft 26.2 (Fabric)
 - **Environment**: client-only (`"environment": "client"`); no server-side installation required
-- **Status**: ✅ **v0.1.1 implemented and built** (`build/libs/skyscript-0.1.1.jar`). Implementation uncovered the 1.21.11 input-system refactor (`Input.playerInput`/`movementVector`, `KeyInput`/`MouseInput`/`Click` events, privatization of `Keyboard.onKey`, `Entity.getEntityPos`, `KeyBinding.Category`, Loom's direct mixin rewriting without refmaps) — all adapted. Pending field testing: Lunar Client loading, attack-mode switching, coordinate-trigger tuning.
+- **Status**: ⚠ **v0.3.0-alpha+26.2 compiles and packages against Minecraft 26.2** (`build/libs/skyscript-0.3.0-alpha+26.2.jar`). The migration moved to official names and Java 25, replaced Yarn-era GUI/HUD/key-binding APIs, and adapted input mixins to `KeyboardHandler`/`MouseHandler`. Pending field testing: in-game Mixin application, HUD/editor rendering, attack-mode switching, coordinate-trigger tuning.
 
 ---
 
@@ -172,7 +172,7 @@ Plus the **settings screen** (opened via `/skyscript` or Mod Menu): HUD options,
 - **M0 field verification** (deferred): whether Lunar Client 1.21.11 loads the mod jar.
   - Path A: loads → keep the Lunar environment.
   - Path B (fallback): plain Fabric = Fabric Loader + Fabric API + SkyHanni (Modrinth build) + SkyScript.
-- **Version strategy**: single-version on 1.21.11 with version-isolation discipline (version-specific code concentrated in a few files under `input/` and `mixins/`, with a porting checklist); when 26.1/26.2 (year-based versioning) are released, introduce Stonecutter if dual-version maintenance is required.
+- **Version strategy**: single-version on 26.2 with version-isolation discipline (version-specific code concentrated in a few files under `input/` and `mixins/`, with a porting checklist); reintroduce Stonecutter if dual-version maintenance for 1.21.x and 26.2 is required.
 
 ---
 
@@ -193,7 +193,7 @@ Total ≈ 2–3 weeks; estimated 2500–4000 lines of code.
 
 ## 12. Risk Register
 
-1. **Lunar 1.21.11 Fabric loading compatibility** (highest priority; M0 field test; fallback ready)
+1. **Minecraft 26.2 runtime compatibility of migrated mixins/GUI rendering** (highest priority; field test pending)
 2. **Whether Lunar-internal features respond to in-game event injection** (OS-level simulation as fallback)
 3. **Server anti-macro rules**: a client-side mod adds no detection surface, but automation behavior itself is subject to server rules
 4. **AttackMode field name changes across versions** (mixin accessor as fallback)
