@@ -60,6 +60,10 @@ public final class ScriptEngine {
 
     /** 卡死检测：误差超过该时长无任何改善 → 告警 */
     private static final long STUCK_MS = 5000;
+    /** 异步命令（如 /home）生效期间，位置看门狗暂缓判定 */
+    private static final long COMMAND_SETTLE_MS = 5000;
+    /** 单次采样最大轴位移达到该值视为传送/重定位，而不是连续移动 */
+    private static final int WATCHDOG_JUMP_BLOCKS = 8;
     private static final long STUCK_WARN_INTERVAL_MS = 10000;
     private static final long POS_LOG_INTERVAL_MS = 1000;
 
@@ -104,6 +108,8 @@ public final class ScriptEngine {
     private long lastStuckWarnMs;
     private long lastPosLogMs;
     private String lastPosText = "";            // 最近一次采样的 "pos=(..) 误差(..)" 文本
+    private long watchdogSettleUntilMs;
+    private net.minecraft.core.BlockPos lastWatchdogPos;
     private long roundCount;                    // 无限循环已完成的轮数（调试用）
 
     private ScriptEngine() {
@@ -222,6 +228,8 @@ public final class ScriptEngine {
         lateralKey = null;
         bestDist = Double.MAX_VALUE;
         lastPosText = "";
+        watchdogSettleUntilMs = 0;
+        lastWatchdogPos = null;
         if (wasRunning && reason != null) {
             debug("Stopped: " + reason);
         }
@@ -262,6 +270,7 @@ public final class ScriptEngine {
                 phaseStartMs += d;
                 holdUntilMs += d;
                 lastProgressMs += d;
+                watchdogSettleUntilMs += d;
                 phase = Phase.RUNNING;
                 // 界面关闭恢复：重新按住当前 hold 步骤的非移动键（冻结时被释放）
                 if (curStep != null && isHoldLike(curStep) && curStep.keys != null) {
@@ -384,6 +393,7 @@ public final class ScriptEngine {
                 Minecraft c = Minecraft.getInstance();
                 String cmd = curStep.value == null ? "" : curStep.value.trim();
                 if (c.getConnection() != null && !cmd.isEmpty()) {
+                    watchdogSettleUntilMs = nowMs() + COMMAND_SETTLE_MS;
                     String send = cmd.startsWith("/") ? cmd.substring(1) : cmd;
                     debug("Step " + prog[0] + "/" + prog[1] + " · 发送指令: /" + send);
                     c.getConnection().sendCommand(send);
@@ -431,6 +441,7 @@ public final class ScriptEngine {
             lastStuckWarnMs = 0;
             lastPosLogMs = 0;
             lastPosText = "";
+            lastWatchdogPos = null;
             debug("Step " + prog[0] + "/" + prog[1] + " started · Action: 按住 " + keys
                     + " · Target: " + targetText() + " · 容差±" + REACH_TOLERANCE);
             if (curStep.cond == null || activeCondCount() == 0) {
@@ -457,33 +468,29 @@ public final class ScriptEngine {
     }
 
     /**
-     * 坐标到达判定（确定性容差模型）：每个有效轴要求 |当前-目标| ≤ REACH_TOLERANCE（半格），
-     * 全部满足才判到达。
+     * 坐标到达判定：GUI 中的目标值使用 Minecraft 方块坐标，
+     * 因此直接比较玩家 {@code BlockPos} 的对应分量。
      *
      * <p>为什么这样设计：
      * <ul>
-     *   <li>GUI 输入的是 Minecraft 整数坐标（方块坐标语义），玩家坐标是 double，
-     *       移动中会出现 -55.98/-56.03 这类值——绝不能用浮点相等比较；</li>
-     *   <li>±0.5 等价于 floor(cur+0.5)==target，即"玩家中心进入目标方块所在列"，
-     *       对 Block Position 与精确坐标两种理解都稳定，X/Y/Z 策略完全一致；</li>
-     *   <li>不依赖"上一 tick→当前 tick"的移动方向推导：玩家从任意方向进入容差带、
-     *       甚至起步就在带内（视为已到达）都能正确判定，不会因某个轴本 tick 没动而永远卡住。</li>
+     *   <li>BlockPos 使用 Minecraft 对负坐标的方块归属规则，例如实体 X=-55.30
+     *       对应的方块 X 是 -56；</li>
+     *   <li>不依赖"上一 tick→当前 tick"的移动方向推导：玩家进入目标方块即可判定到达。</li>
      * </ul>
      *
-     * <p>Y 轴语义 = 实体脚下坐标（与 GUI"导入当前坐标"一致）：目标 y=73 表示
-     * 玩家站在方块顶面 y≈73.0（脚下是 y=72 的方块）。
+     * <p>Y 轴同样使用玩家 {@code BlockPos} 的 Y 分量，与 X/Z 保持一致。
      *
      * <p>没有任何有效条件时返回 false（未配置的坐标步骤不允许秒过，由卡死告警提醒用户）。
      */
     private boolean posCondMet() {
         Minecraft c = Minecraft.getInstance();
         if (c == null || c.player == null || curStep == null || curStep.cond == null) return false;
-        var pos = c.player.position();
+        var blockPos = c.player.blockPosition();
         boolean any = false;
         for (var pc : curStep.cond) {
             if (pc == null || isIgnoreOp(pc.op)) continue;
             any = true;
-            if (Math.abs(axisVal(pc.axis, pos) - pc.value) > REACH_TOLERANCE + 1e-9) return false;
+            if (axisVal(pc.axis, blockPos) != pc.value) return false;
         }
         return any;
     }
@@ -527,17 +534,30 @@ public final class ScriptEngine {
         if (curStep == null || !isHoldLike(curStep)) return;
         String ut = curStep.untilType == null ? "time" : curStep.untilType;
         if (!"position".equals(ut) || curStep.cond == null || curStep.cond.isEmpty()) return;
-        var pos = c.player.position();
+        var blockPos = c.player.blockPosition();
         double maxErr = 0;
         StringBuilder err = new StringBuilder();
         for (var pc : curStep.cond) {
             if (pc == null || isIgnoreOp(pc.op)) continue;
-            double d = axisVal(pc.axis, pos) - pc.value;
+            double d = axisVal(pc.axis, blockPos) - pc.value;
             err.append(pc.axis).append("Δ").append(String.format("%+.2f", d)).append(' ');
             maxErr = Math.max(maxErr, Math.abs(d));
         }
-        lastPosText = String.format("pos=(%.2f, %.2f, %.2f) 误差 %s", pos.x, pos.y, pos.z, err);
-        if (maxErr < bestDist - 0.01) {
+        lastPosText = String.format("block=(%d, %d, %d) 误差 %s", blockPos.getX(), blockPos.getY(), blockPos.getZ(), err);
+        boolean jumped = false;
+        if (lastWatchdogPos != null) {
+            int dx = Math.abs(blockPos.getX() - lastWatchdogPos.getX());
+            int dy = Math.abs(blockPos.getY() - lastWatchdogPos.getY());
+            int dz = Math.abs(blockPos.getZ() - lastWatchdogPos.getZ());
+            jumped = Math.max(dx, Math.max(dy, dz)) >= WATCHDOG_JUMP_BLOCKS;
+        }
+        lastWatchdogPos = blockPos;
+        if (jumped) {
+            // 传送后的位置与旧基线不可比；从当前误差重新开始判断是否持续接近目标。
+            bestDist = maxErr;
+            lastProgressMs = now;
+            lastStuckWarnMs = now;
+        } else if (maxErr < bestDist - 0.01) {
             bestDist = maxErr;
             lastProgressMs = now;
         }
@@ -546,7 +566,8 @@ public final class ScriptEngine {
             int[] p = getStepProgress();
             debug("Step " + p[0] + "/" + p[1] + " " + lastPosText + "| reached=" + (maxErr <= REACH_TOLERANCE));
         }
-        if (maxErr > REACH_TOLERANCE && now - lastProgressMs > STUCK_MS && now - lastStuckWarnMs > STUCK_WARN_INTERVAL_MS) {
+        long monitorSinceMs = Math.max(lastProgressMs, watchdogSettleUntilMs);
+        if (maxErr > REACH_TOLERANCE && now - monitorSinceMs > STUCK_MS && now - lastStuckWarnMs > STUCK_WARN_INTERVAL_MS) {
             lastStuckWarnMs = now;
             Feedback.notify("§6[SkyScript] §f可能卡住: 坐标误差 " + Math.round(maxErr * 10) / 10.0
                     + " 格持续不减小（" + err + "）—— 当前朝向下按住的键可能不改变目标轴，或 Y 目标不可达");
@@ -561,11 +582,11 @@ public final class ScriptEngine {
         c.player.sendSystemMessage(net.minecraft.network.chat.Component.literal("§7[Script] §f" + msg));
     }
 
-    private static double axisVal(String axis, net.minecraft.world.phys.Vec3 pos) {
+    private static double axisVal(String axis, net.minecraft.core.BlockPos pos) {
         return switch (axis == null ? "x" : axis) {
-            case "y" -> pos.y;
-            case "z" -> pos.z;
-            default -> pos.x;
+            case "y" -> pos.getY();
+            case "z" -> pos.getZ();
+            default -> pos.getX();
         };
     }
 

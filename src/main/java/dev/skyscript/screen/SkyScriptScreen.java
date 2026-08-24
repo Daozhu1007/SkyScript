@@ -945,13 +945,13 @@ public class SkyScriptScreen extends Screen {
     private void importCurrentPos() {
         var player = Minecraft.getInstance().player;
         if (player == null) return;
-        var pos = player.position();
+        var pos = player.blockPosition();
         posOpX = "target";
-        posValX = fmtNum(pos.x);
+        posValX = fmtNum(pos.getX());
         posOpY = "target";
-        posValY = fmtNum(pos.y);
+        posValY = fmtNum(pos.getY());
         posOpZ = "target";
-        posValZ = fmtNum(pos.z);
+        posValZ = fmtNum(pos.getZ());
         refresh();
     }
 
