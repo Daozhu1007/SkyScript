@@ -141,6 +141,33 @@ public final class SkyScriptConfig {
         }
     }
 
+    /**
+     * 复制方案：按「原名 Copy / Copy 2 / Copy 3 …」取唯一名，深拷贝后立即落盘。
+     * 逻辑名和清洗后的文件名都查重，绝不覆盖已有方案；不改动活动方案。
+     */
+    public static Script duplicateScript(Script source) {
+        if (source == null) return null;
+        String base = source.name == null ? "unnamed" : source.name;
+        List<Script> existing = listScripts();
+        String name = base + " Copy";
+        for (int i = 2; ; i++) {
+            if (!nameTaken(name, existing)) break;
+            name = base + " Copy " + i;
+        }
+        Script dup = source.copy();
+        dup.name = name;
+        saveScript(dup);
+        return dup;
+    }
+
+    /** 名字是否已占用：既查现有方案的逻辑名，也查清洗后的文件名（不同名字可能映射到同一文件） */
+    private static boolean nameTaken(String name, List<Script> existing) {
+        for (Script s : existing) {
+            if (s.name.equals(name)) return true;
+        }
+        return Files.exists(scriptsDir().resolve(sanitize(name) + ".json"));
+    }
+
     /** 活动方案：只有用户在编辑器里显式设为「活动」才返回；未设置返回 null（不再自动选第一个）。 */
     public static Script getActiveScript() {
         if (settings.activeScript == null || settings.activeScript.isEmpty()) return null;

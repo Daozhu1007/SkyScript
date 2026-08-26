@@ -490,7 +490,7 @@ public class SkyScriptScreen extends Screen {
             refresh();
         }).bounds(CONTENT_X + 106, this.height - 34, 90, 20).build());
 
-        int zoneStart = this.width - 16 - ZONE_W * 3 - ZONE_GAP * 2;
+        int zoneStart = this.width - 16 - ZONE_W * 4 - ZONE_GAP * 3;
         for (int i = 0; i < scripts.size(); i++) {
             Script s = scripts.get(i);
             boolean isActive = s.name.equals(activeScriptName());
@@ -502,7 +502,20 @@ public class SkyScriptScreen extends Screen {
                         b -> { SkyScriptConfig.get().activeScript = s.name; SkyScriptConfig.save(); refresh(); }));
                 addRenderableWidget(zoneBtn(zoneStart, y, 1, "编辑",
                         b -> { editingScript = s; editOriginalName = s.name; stepsStack.clear(); stepsStack.push(s.steps); editingStep = null; scroll = 0; refresh(); }));
-                addRenderableWidget(zoneBtn(zoneStart, y, 2, deleteArm.equals(s.name) ? "确认?" : "§c删除",
+                addRenderableWidget(zoneBtn(zoneStart, y, 2, "复制",
+                        b -> {
+                            Script dup = SkyScriptConfig.duplicateScript(s);
+                            if (dup != null) {
+                                editingScript = dup;
+                                editOriginalName = dup.name;
+                                stepsStack.clear();
+                                stepsStack.push(dup.steps);
+                                editingStep = null;
+                                scroll = 0;
+                            }
+                            refresh();
+                        }));
+                addRenderableWidget(zoneBtn(zoneStart, y, 3, deleteArm.equals(s.name) ? "确认?" : "§c删除",
                         b -> {
                             if (deleteArm.equals(s.name)) {
                                 if (s.name.equals(SkyScriptConfig.get().activeScript)) SkyScriptConfig.get().activeScript = "";

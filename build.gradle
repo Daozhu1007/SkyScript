@@ -3,7 +3,7 @@ plugins {
 	id 'maven-publish'
 }
 
-version = '0.3.0-alpha+26.2'
+version = '0.3.2-alpha+26.2'
 group = 'dev.skyscript'
 
 base {
