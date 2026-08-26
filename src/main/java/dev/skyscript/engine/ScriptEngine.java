@@ -111,6 +111,12 @@ public final class ScriptEngine {
     private long watchdogSettleUntilMs;
     private net.minecraft.core.BlockPos lastWatchdogPos;
     private long roundCount;                    // 无限循环已完成的轮数（调试用）
+    /** F8 主动暂停时记录的 Step 下标（脚本级帧内）；非 F8 停止路径一律清空。仅在进程内有效。 */
+    private Integer pausedStepIndex;
+    /** F8 主动暂停时保存的横向偏置；与 pausedStepIndex 同时保存/清空/恢复，Resume 时重建暂停那刻的全表映射。 */
+    private String pausedBias;
+    /** 最近一次 start() 是否为 F8 Resume：pollTriggers 据此跳过「启动键覆盖 bias」，全新启动恒为 false。 */
+    private boolean lastStartWasResume;
 
     private ScriptEngine() {
     }
@@ -134,7 +140,17 @@ public final class ScriptEngine {
     public void setArmed(boolean armed) {
         this.armed = armed;
         if (!armed) {
-            stop("F8 总开关关闭");
+            // F8 主动关闭：在 stop() 清理前捕获当前 Step 下标与横向偏置，供下次启动 Resume。
+            // 仅记录脚本级帧（stack.size()==1）；循环体内暂停不记录（重启时栈结构不同，下标无意义）。
+            Integer capturedIndex = null;
+            String capturedBias = null;
+            if (isRunning() && stack.size() == 1) {
+                capturedIndex = stack.peek().index;
+                capturedBias = lateralBias;
+            }
+            stop("F8 总开关关闭"); // 内部会清空 pausedStepIndex / pausedBias
+            pausedStepIndex = capturedIndex; // F8 路径专属：恢复捕获值
+            pausedBias = capturedBias;
         }
     }
 
@@ -194,6 +210,10 @@ public final class ScriptEngine {
     // ---------- 生命周期 ----------
 
     public void start(Script original) {
+        // 先读取 Resume 状态（stop() 会清空它们），在 stop 之前完成读取
+        Integer resumeIndex = pausedStepIndex;
+        String resumeBias = pausedBias;
+        lastStartWasResume = false;
         stop();
         if (original == null || original.steps == null || original.steps.isEmpty()) {
             // 空方案不启动，避免 enterStep 越界崩溃
@@ -205,9 +225,23 @@ public final class ScriptEngine {
         stack.push(new Frame(script.steps, script.loop));
         phase = Phase.RUNNING;
         roundCount = 0;
+        // 确定起始 Step：有合法的 F8 暂停记录则从中续跑，否则从 Step 1 开始
+        int initialIndex = 0;
+        if (resumeIndex != null && resumeIndex >= 0 && resumeIndex < script.steps.size()) {
+            initialIndex = resumeIndex;
+            lastStartWasResume = true;
+            // Resume：恢复暂停时保存的横向偏置并重映射全表，重建暂停那一刻的按键布局。
+            // 本次触发键只作为启动信号；方向以暂停时的状态为准（见 pollTriggers 的跳过逻辑）。
+            if (resumeBias != null) {
+                lateralBias = resumeBias;
+                applyLateralBias(resumeBias);
+            }
+            debug("Resume from Step " + (initialIndex + 1) + "/" + script.steps.size()
+                    + (resumeBias != null ? "（横向偏置=" + resumeBias + "）" : ""));
+        }
         debug("Started: " + script.name + "（共 " + script.steps.size() + " 步，循环="
                 + (script.loop == 0 ? "无限" : script.loop) + "）");
-        enterStep(stack.peek(), 0);
+        enterStep(stack.peek(), initialIndex);
     }
 
     public void stop() {
@@ -221,6 +255,8 @@ public final class ScriptEngine {
         script = null;
         curStep = null;
         stack.clear();
+        pausedStepIndex = null; // 所有非 F8 停止路径一律清空 Resume 状态
+        pausedBias = null;
         releaseRobotKeys();
         MovementController.clear();
         implicitTapKeys.clear();
@@ -680,12 +716,13 @@ public final class ScriptEngine {
                     Feedback.notify("§6[SkyScript] §f这个方案还没有动作，先编辑加动作");
                     continue;
                 }
-                // 先记录触发键，再 start()（start 内部调 stop() 会把 lateralBias 重置回 "A"，
-                // 所以必须在 start 之后重新设置 bias 再重映射，否则"按 D 启动却往左走"）
+                // 先记录触发键，再 start()（start 内部调 stop() 会把 lateralBias 重置回 "A"）。
+                // 全新启动：用启动键设置 bias 并重映射（按 D 启动就往 D 方向）；
+                // F8 Resume：start() 内部已恢复暂停时的 bias，本次按键只是启动信号，不得再改写方向。
                 String startKey = KeyNames.isLateralKey(name) ? name : null;
                 debug("触发键 " + name + " 短按 → 启动方案");
                 start(active);
-                if (startKey != null) {
+                if (startKey != null && !lastStartWasResume) {
                     lateralBias = startKey;
                     applyLateralBias(startKey);
                 }
