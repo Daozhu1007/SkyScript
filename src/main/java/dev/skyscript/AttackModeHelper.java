@@ -3,42 +3,37 @@ package dev.skyscript;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.OptionInstance;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-
 /**
  * 攻击/摧毁模式（切换 / 长按）读写。
  *
- * <p>1.21.2+ 的 GameOptions 里该选项经历了几种形态：
- * <ul>
- *   <li>1.21.11 及之后：{@code attackToggled}（SimpleOption&lt;Boolean&gt;，true=切换模式）</li>
- *   <li>早期版本：枚举（HOLD/TOGGLE）形式的 SimpleOption</li>
- * </ul>
- * 用反射 + 启发式查找（优先名字 attackToggled，回退值枚举含 HOLD/TOGGLE），跨版本健壮。
+ * <p>MC 26.2 中 {@code Options#toggleAttack()} 直接返回 {@code OptionInstance<Boolean>}
+ * （true=切换模式），其取值 API 为类型安全的 {@link OptionInstance#get()} / {@link OptionInstance#set(Object)}，
+ * 无需反射。
  */
 public final class AttackModeHelper {
 
     private static OptionInstance<Boolean> option;
-    private static Method getValue;
-    private static Method setValue;
-    private static boolean tried;
+    /** 是否已成功解析选项；未成功前每次调用都会重试（客户端可能尚未就绪）。 */
+    private static boolean resolved;
 
     private AttackModeHelper() {
     }
 
     private static synchronized boolean init() {
-        if (tried) return option != null;
-        tried = true;
-        try {
+        if (resolved) return option != null;
+
         Minecraft c = Minecraft.getInstance();
-        if (c == null || c.options == null) return false;
-        option = c.options.toggleAttack();
-            getValue = option.getClass().getMethod("getValue");
-            setValue = option.getClass().getMethod("setValue", Object.class);
-            return true;
-        } catch (Exception e) {
+        if (c == null || c.options == null) {
             return false;
         }
+
+        option = c.options.toggleAttack();
+        if (option == null) {
+            return false;
+        }
+
+        resolved = true;
+        return true;
     }
 
     public static boolean available() {
@@ -47,33 +42,18 @@ public final class AttackModeHelper {
 
     public static boolean isToggle() {
         if (!init()) return false;
-        try {
-            Object v = getValue.invoke(option);
-            if (v instanceof Boolean b) return b;
-            return v != null && v.toString().toUpperCase().contains("TOGGLE");
-        } catch (Exception e) {
-            return false;
-        }
+        return Boolean.TRUE.equals(option.get());
     }
 
     /** 切换到切换模式(toggle=true)或长按模式(toggle=false)；返回是否成功 */
     public static boolean setToggle(boolean toggle) {
         if (!init()) return false;
-        try {
-            Object v = getValue.invoke(option);
-            if (v instanceof Boolean b) {
-                if (b == toggle) return true;
-                setValue.invoke(option, toggle);
-                return true;
-            }
-            if (v == null) return false;
-            @SuppressWarnings({"unchecked", "rawtypes"})
-            Enum<?> target = Enum.valueOf((Class<? extends Enum>) v.getClass(), toggle ? "TOGGLE" : "HOLD");
-            if (v == target) return true;
-            setValue.invoke(option, target);
+
+        if (Boolean.TRUE.equals(option.get()) == toggle) {
             return true;
-        } catch (Exception e) {
-            return false;
         }
+
+        option.set(toggle);
+        return true;
     }
 }
